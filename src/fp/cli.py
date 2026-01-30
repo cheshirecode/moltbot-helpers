@@ -7,7 +7,7 @@ import sqlite3
 import sys
 from datetime import datetime
 
-DB_PATH = os.path.expanduser(os.environ.get("FP_DB", "~/clawd/memory/mox.db"))
+DB_PATH = os.path.expanduser(os.environ.get("FP_DB", "~/clawd/data/family-planning/family-planning.db"))
 
 USAGE = """\
 fp — Family Planner CLI
@@ -22,8 +22,10 @@ Query commands:
   people                List family members
   docs [person]         Show documents (optional person filter)
   facts [topic]         Show facts (optional topic filter)
+  finances [asset_type] [country] Show financial entries (optional filters)
   search <term>         Search across all tables
   sql <query>           Run read-only SQL
+  dump                  Dump all family planning data
 
 Update commands:
   add-fact <topic> <key> <value> [source]
@@ -56,6 +58,39 @@ def fmt_rows(rows, columns=None):
     return "\n".join(lines)
 
 
+def fmt_rows_for_llm(rows, column_names): # Added column_names parameter
+    if not rows:
+        return "(no records)"
+    
+    # Column names are now passed explicitly
+    columns = column_names
+    if not columns:
+        return "(no records)"
+
+    # Format header
+    header = "| " + " | ".join(columns) + " |\n"
+    # Generate separator dynamically
+    separator_parts = []
+    for col in columns:
+        # Minimum width of 3 for markdown table (e.g., ---)
+        separator_parts.append("-" * max(3, len(col))) 
+    separator = "|-" + "-|-".join(separator_parts) + "-|\n"
+
+    # Format rows
+    data_rows = []
+    for row_tuple in rows: # Iterate over tuple elements
+        formatted_values = []
+        for val in row_tuple: # val is directly the value from the tuple
+            val_str = str(val) if val is not None else ""
+            # Escape markdown table breaking characters and newlines
+            val_str = val_str.replace('|', '\\|').replace('\n', '\\n')
+            formatted_values.append(val_str)
+        data_rows.append("| " + " | ".join(formatted_values) + " |")
+    
+    return header + separator + "\n".join(data_rows)
+
+
+
 def cmd_balances():
     db = get_db()
     rows = db.execute(
@@ -68,25 +103,70 @@ def cmd_balances():
 def cmd_net_worth():
     db = get_db()
     rows = db.execute(
-        "SELECT key, value, notes FROM finances WHERE category='banking' ORDER BY key"
+        "SELECT key, value, notes, category, asset_type, country FROM finances ORDER BY key"
     ).fetchall()
-    cad_total = 0.0
-    sgd_total = 0.0
+    total_cad_equivalent = 0.0
+    
+    print("--- Detailed Net Worth Calculation ---")
     for r in rows:
-        val = r["value"] or ""
-        m = re.search(r"[\d,.]+", val.replace(",", ""))
-        if not m:
-            continue
-        amount = float(m.group())
-        if "SGD" in val.upper() or "sgd" in (r["notes"] or "").lower():
-            sgd_total += amount
-        else:
-            cad_total += amount
-    print(f"CAD: {cad_total:,.0f}")
-    print(f"SGD: {sgd_total:,.0f}")
-    # rough conversion
-    cad_equiv = sgd_total * 0.95  # approximate SGD->CAD
-    print(f"Total (approx CAD): {cad_total + cad_equiv:,.0f}")
+        value_str = r["value"] or ""
+        notes_str = r["notes"] or ""
+        asset_cad = 0.0
+        processed = False
+
+        # Prioritize CAD equivalent from notes
+        cad_equiv_match = re.search(r"CAD equivalent:\s*([\d,.]+)", notes_str)
+        if not cad_equiv_match:
+            cad_equiv_match = re.search(r"([\d,.]+)\s*CAD", notes_str, re.IGNORECASE)
+
+        if cad_equiv_match:
+            # Clean the extracted string for float conversion (remove commas, ensure only one dot)
+            numeric_str = re.sub(r'[^\d.]', '', cad_equiv_match.group(1)).strip('.')
+            try:
+                asset_cad = float(numeric_str)
+                print(f"  - {r['key']} ({r['value']}): {asset_cad:,.2f} CAD (from notes)")
+                processed = True
+            except ValueError:
+                print(f"  - {r['key']} ({r['value']}): Could not convert '{numeric_str}' from notes to float, skipping.")
+
+        if not processed:
+            # If not processed by notes, try to parse directly if it looks like CAD in value_str
+            cad_match = re.search(r"CAD\s*([\d,.]+)", value_str)
+            if not cad_match:
+                cad_match = re.search(r"([\d,.]+)\s*CAD", value_str)
+            
+            if cad_match:
+                numeric_str = re.sub(r'[^\d.]', '', cad_match.group(1)).strip('.')
+                try:
+                    asset_cad = float(numeric_str)
+                    print(f"  - {r['key']} ({r['value']}): {asset_cad:,.2f} CAD (direct from value)")
+                    processed = True
+                except ValueError:
+                    print(f"  - {r['key']} ({r['value']}): Could not convert '{numeric_str}' from value to float, skipping.")
+
+        if not processed:
+            # Fallback for raw numbers without explicit currency if no CAD equivalent
+            numeric_match = re.search(r"[\d,.]+", value_str.replace(",", ""))
+            if numeric_match:
+                amount = float(numeric_match.group())
+                # Attempt a rough conversion for SGD if it's the only info
+                if "SGD" in value_str.upper() or "SGD" in notes_str.upper():
+                    asset_cad = amount * 0.95 # Approximate SGD->CAD rate
+                    print(f"  - {r['key']} ({r['value']}): {asset_cad:,.2f} CAD (approx SGD->CAD)")
+                    processed = True
+                elif "VND" in value_str.upper() or "VND" in notes_str.upper():
+                    # If VND, and not processed by notes, and no direct CAD:
+                    print(f"  - {r['key']} ({r['value']}): VND amount, no explicit CAD conversion found, skipping for now.")
+                else:
+                    print(f"  - {r['key']} ({r['value']}): No currency or explicit CAD equivalent found, skipping for now.")
+            else:
+                # This could catch values like "active", "unemployed" etc.
+                print(f"  - {r['key']} ({r['value']}): Could not parse numeric value, skipping.")
+        
+        total_cad_equivalent += asset_cad
+        
+    print("------------------------------------")
+    print(f"Total Net Worth (approx CAD): {total_cad_equivalent:,.2f}")
     db.close()
 
 
@@ -261,6 +341,64 @@ def cmd_set(args):
     db.close()
 
 
+def cmd_finances(asset_type=None, country=None):
+    db = get_db()
+    query = "SELECT category, asset_type, country, key, value, notes FROM finances WHERE 1=1"
+    params = []
+    if asset_type:
+        query += " AND asset_type=?"
+        params.append(asset_type)
+    if country:
+        query += " AND country=?"
+        params.append(country)
+    query += " ORDER BY country, asset_type, key"
+    rows = db.execute(query, params).fetchall()
+    print(fmt_rows(rows))
+    db.close()
+
+SENSITIVE_COLUMNS_MAP = {
+    "documents": ["doc_number"]
+}
+
+def cmd_dump():
+    output_content = ""
+
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = [row[0] for row in cursor.fetchall()]
+
+    for table_name in tables:
+        output_content += f"## {table_name}\n\n"
+        
+        cursor.execute(f"PRAGMA table_info({table_name});")
+        column_info = cursor.fetchall()
+        all_column_names = [col[1] for col in column_info]
+
+        cursor.execute(f"SELECT * FROM {table_name};")
+        rows_data = cursor.fetchall()
+
+        processed_rows = []
+        for row_tuple in rows_data:
+            processed_row = []
+            for i, col_name in enumerate(all_column_names):
+                val = row_tuple[i]
+                if table_name in SENSITIVE_COLUMNS_MAP and col_name in SENSITIVE_COLUMNS_MAP[table_name]:
+                    processed_row.append("[REDACTED]" if val is not None else None)
+                else:
+                    processed_row.append(val)
+            processed_rows.append(tuple(processed_row)) # Convert list back to tuple
+
+        if processed_rows:
+            output_content += fmt_rows_for_llm(processed_rows, all_column_names) + "\n\n"
+        else:
+            output_content += "(no records)\n\n"
+
+    db.close()
+    print(output_content) # Print to stdout # Print to stdout
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -278,6 +416,7 @@ def main():
         "people": lambda: cmd_people(),
         "docs": lambda: cmd_docs(rest[0] if rest else None),
         "facts": lambda: cmd_facts(rest[0] if rest else None),
+        "finances": lambda: cmd_finances(rest[0] if rest else None, rest[1] if len(rest) > 1 else None),
         "search": lambda: cmd_search(rest[0]) if rest else print("Usage: fp search <term>"),
         "sql": lambda: cmd_sql(" ".join(rest)) if rest else print("Usage: fp sql <query>"),
         "exec": lambda: cmd_exec(" ".join(rest)) if rest else print("Usage: fp exec <sql>"),
@@ -285,6 +424,7 @@ def main():
         "add-task": lambda: cmd_add_task(rest),
         "complete-task": lambda: cmd_complete_task(rest[0]) if rest else print("Usage: fp complete-task <id>"),
         "set": lambda: cmd_set(rest),
+        "dump": lambda: cmd_dump(), # New command
     }
 
     if cmd in commands:
