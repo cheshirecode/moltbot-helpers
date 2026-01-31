@@ -31,6 +31,10 @@ def main():
     # Status command
     status_parser = subparsers.add_parser('status', help='Get status of all integrated systems')
     
+    # Context command
+    context_parser = subparsers.add_parser('context', help='Determine best system for a query using contextual intelligence')
+    context_parser.add_argument('query', help='Query to analyze for system selection')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -100,6 +104,15 @@ def main():
             status["systems"]["semantic_search"]["error"] = str(e)
         
         print(json.dumps(status, indent=2))
+        
+    # Add contextual intelligence command
+    elif args.command == 'context':
+        if not args.query:
+            print("Usage: integrate context <query>")
+            return
+        query = args.query
+        result = interface.determine_best_system(query)
+        print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

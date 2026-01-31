@@ -371,6 +371,70 @@ class UnifiedInterface:
         
         return analysis
     
+    def determine_best_system(self, query: str) -> Dict[str, Any]:
+        """
+        Determine the best system to handle a given query based on contextual intelligence.
+        
+        This method analyzes the query and recommends which system (fp, seek, or pt) 
+        is most appropriate to handle the request.
+        """
+        query_lower = query.lower()
+        
+        # Define keywords that suggest specific system usage
+        fp_keywords = [
+            "family", "finance", "budget", "balance", "task", "date", "event", 
+            "person", "people", "member", "relative", "appointment", "reminder",
+            "birthday", "anniversary", "expense", "income", "account", "bill"
+        ]
+        
+        pt_keywords = [
+            "project", "task", "issue", "bug", "feature", "milestone", "deadline",
+            "timeline", "roadmap", "plan", "schedule", "work", "development",
+            "progress", "status", "tracker", "todo", "assign", "priority"
+        ]
+        
+        seek_keywords = [
+            "search", "find", "information", "document", "research", "lookup",
+            "details", "history", "context", "explain", "describe", "summarize",
+            "knowledge", "learn", "understand", "locate", "discover"
+        ]
+        
+        # Count keyword matches for each system
+        fp_score = sum(1 for keyword in fp_keywords if keyword in query_lower)
+        pt_score = sum(1 for keyword in pt_keywords if keyword in query_lower)
+        seek_score = sum(1 for keyword in seek_keywords if keyword in query_lower)
+        
+        # Consider query structure and intent
+        if any(q_word in query_lower for q_word in ["what", "when", "where", "who", "why", "how"]):
+            seek_score += 1  # Information-seeking questions often benefit from search
+        
+        if "deadline" in query_lower or "due" in query_lower:
+            pt_score += 1  # Deadline-related queries are typically project-related
+        
+        if "balance" in query_lower or "money" in query_lower or "cost" in query_lower:
+            fp_score += 1  # Financial queries are typically family-planning related
+        
+        # Determine the best system based on scores
+        scores = {"fp": fp_score, "pt": pt_score, "seek": seek_score}
+        best_system = max(scores, key=scores.get)
+        
+        # Provide additional context if scores are close (indicating potential cross-reference need)
+        recommendations = []
+        if abs(scores[best_system] - scores["fp"]) <= 1 and scores[best_system] > 0:
+            recommendations.append("Consider checking family planning data as well")
+        if abs(scores[best_system] - scores["pt"]) <= 1 and scores[best_system] > 0:
+            recommendations.append("Consider checking project tracking data as well")
+        if abs(scores[best_system] - scores["seek"]) <= 1 and scores[best_system] > 0:
+            recommendations.append("Consider performing a semantic search as well")
+        
+        return {
+            "recommended_system": best_system,
+            "scores": scores,
+            "confidence": "high" if max(scores.values()) >= 2 else "medium",
+            "recommendations": recommendations,
+            "query": query
+        }
+    
     def get_recommendations(self, context: str = "") -> Dict[str, Any]:
         """
         Generate intelligent recommendations based on current state of all systems.
