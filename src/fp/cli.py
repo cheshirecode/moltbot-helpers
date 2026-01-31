@@ -7,7 +7,7 @@ import sqlite3
 import sys
 from datetime import datetime
 
-DB_PATH = os.path.expanduser(os.environ.get("FP_DB", "~/clawd/data/family-planning/family-planning.db"))
+DB_PATH = os.path.expanduser(os.environ.get("FP_DB", "~/projects/_openclaw/family-planning.db"))
 
 USAGE = """\
 fp — Family Planner CLI

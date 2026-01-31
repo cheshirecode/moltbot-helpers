@@ -9,7 +9,7 @@ DEFAULT_CONFIG = {
     "paths": [],
     "sqliteSources": [],
     "model": "all-MiniLM-L6-v2",
-    "dbPath": "~/.local/share/seek/seek.db",
+    "dbPath": "~/projects/_openclaw/seek.db",
     "chunkSize": 256,
     "chunkOverlap": 32,
 }
