@@ -502,6 +502,264 @@ class UnifiedInterface:
             "timestamp": datetime.now().isoformat(),
             "context": context
         }
+    
+    def _initialize_knowledge_graph_db(self):
+        """Initialize the knowledge graph database to store relationships between entities."""
+        kg_db_path = os.path.expanduser("~/projects/_openclaw/knowledge-graph.db")
+        conn = sqlite3.connect(kg_db_path)
+        cursor = conn.cursor()
+        
+        # Create tables for storing relationships
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS relationships (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_entity TEXT NOT NULL,
+                source_type TEXT NOT NULL,  -- 'project', 'task', 'family_event', 'person', 'date', etc.
+                target_entity TEXT NOT NULL,
+                target_type TEXT NOT NULL,  -- 'project', 'task', 'family_event', 'person', 'date', etc.
+                relationship_type TEXT NOT NULL,  -- 'depends_on', 'related_to', 'conflicts_with', 'scheduled_before', etc.
+                strength REAL DEFAULT 1.0,  -- How strong is this relationship (0.0 to 1.0)
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create indexes for faster queries
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_source ON relationships(source_entity, source_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_target ON relationships(target_entity, target_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_relationship ON relationships(relationship_type)")
+        
+        conn.commit()
+        conn.close()
+        return kg_db_path
+    
+    def add_relationship(self, source_entity: str, source_type: str, target_entity: str, target_type: str, relationship_type: str, strength: float = 1.0) -> Dict[str, Any]:
+        """
+        Add a relationship between two entities in the knowledge graph.
+        
+        Args:
+            source_entity: The entity that has the relationship
+            source_type: Type of the source entity ('project', 'task', 'family_event', etc.)
+            target_entity: The entity that is related to
+            target_type: Type of the target entity ('project', 'task', 'family_event', etc.)
+            relationship_type: Type of relationship ('depends_on', 'related_to', 'conflicts_with', etc.)
+            strength: Strength of the relationship (0.0 to 1.0)
+        """
+        try:
+            kg_db_path = self._initialize_knowledge_graph_db()
+            conn = sqlite3.connect(kg_db_path)
+            cursor = conn.cursor()
+            
+            # Check if relationship already exists
+            cursor.execute("""
+                SELECT id FROM relationships 
+                WHERE source_entity = ? AND source_type = ? AND target_entity = ? AND target_type = ?
+            """, (source_entity, source_type, target_entity, target_type))
+            
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing relationship
+                cursor.execute("""
+                    UPDATE relationships 
+                    SET relationship_type = ?, strength = ?, updated_date = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (relationship_type, strength, existing[0]))
+            else:
+                # Insert new relationship
+                cursor.execute("""
+                    INSERT INTO relationships (source_entity, source_type, target_entity, target_type, relationship_type, strength)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (source_entity, source_type, target_entity, target_type, relationship_type, strength))
+            
+            conn.commit()
+            conn.close()
+            
+            return {
+                "success": True,
+                "message": f"Relationship added: {source_entity} ({source_type}) {relationship_type} {target_entity} ({target_type})"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def get_related_entities(self, entity: str, entity_type: str = None, relationship_type: str = None) -> Dict[str, Any]:
+        """
+        Get entities related to a specific entity in the knowledge graph.
+        
+        Args:
+            entity: The entity to find relationships for
+            entity_type: Type of the entity (optional filter)
+            relationship_type: Type of relationship (optional filter)
+        """
+        try:
+            kg_db_path = self._initialize_knowledge_graph_db()
+            conn = sqlite3.connect(kg_db_path)
+            cursor = conn.cursor()
+            
+            # Query relationships where the entity is the source
+            query_parts = ["SELECT source_entity, source_type, target_entity, target_type, relationship_type, strength FROM relationships WHERE source_entity = ?"]
+            params = [entity]
+            
+            if entity_type:
+                query_parts.append("AND source_type = ?")
+                params.append(entity_type)
+            
+            if relationship_type:
+                query_parts.append("AND relationship_type = ?")
+                params.append(relationship_type)
+            
+            query_parts.append("UNION ALL")
+            
+            # Query relationships where the entity is the target
+            query_parts.append("SELECT source_entity, source_type, target_entity, target_type, relationship_type, strength FROM relationships WHERE target_entity = ?")
+            params.append(entity)
+            
+            if entity_type:
+                query_parts.append("AND target_type = ?")
+                params.append(entity_type)
+            
+            if relationship_type:
+                query_parts.append("AND relationship_type = ?")
+                params.append(relationship_type)
+            
+            query = " ".join(query_parts)
+            cursor.execute(query, params)
+            
+            relationships = cursor.fetchall()
+            
+            conn.close()
+            
+            # Format results
+            formatted_relationships = []
+            for rel in relationships:
+                formatted_relationships.append({
+                    "source_entity": rel[0],
+                    "source_type": rel[1],
+                    "target_entity": rel[2],
+                    "target_type": rel[3],
+                    "relationship_type": rel[4],
+                    "strength": rel[5]
+                })
+            
+            return {
+                "success": True,
+                "entity": entity,
+                "entity_type": entity_type,
+                "relationships": formatted_relationships
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def build_knowledge_graph(self) -> Dict[str, Any]:
+        """
+        Build the knowledge graph by analyzing existing data across all systems
+        and identifying relationships between projects, tasks, and family events.
+        """
+        try:
+            # Initialize the knowledge graph DB
+            kg_db_path = self._initialize_knowledge_graph_db()
+            
+            # Get all projects from project tracker
+            pt_result = self.pt_query(["list"])
+            relationships_added = 0
+            
+            if pt_result["success"]:
+                # Parse projects and look for potential relationships
+                output_lines = pt_result["stdout"].split('\n')
+                current_project = {}
+                
+                for line in output_lines:
+                    if line.startswith("ID:"):
+                        # Process previous project if exists
+                        if current_project and "title" in current_project:
+                            # Look for potential relationships with family events/dates
+                            project_title = current_project["title"]
+                            
+                            # Check for dates in project info that might conflict with family events
+                            import re
+                            date_pattern = r'\d{4}-\d{2}-\d{2}'
+                            dates = re.findall(date_pattern, pt_result["stdout"])
+                            
+                            for date in dates:
+                                # Add relationship: project depends_on/scheduled_for date
+                                rel_result = self.add_relationship(
+                                    source_entity=project_title,
+                                    source_type="project",
+                                    target_entity=date,
+                                    target_type="date",
+                                    relationship_type="scheduled_for",
+                                    strength=0.8
+                                )
+                                if rel_result["success"]:
+                                    relationships_added += 1
+                        
+                        # Start new project
+                        current_project = {"info": line}
+                    elif "Title:" in line:
+                        current_project["title"] = line.split("Title:")[-1].strip()
+            
+                # Process the last project
+                if current_project and "title" in current_project:
+                    project_title = current_project["title"]
+                    import re
+                    date_pattern = r'\d{4}-\d{2}-\d{2}'
+                    dates = re.findall(date_pattern, pt_result["stdout"])
+                    
+                    for date in dates:
+                        rel_result = self.add_relationship(
+                            source_entity=project_title,
+                            source_type="project",
+                            target_entity=date,
+                            target_type="date",
+                            relationship_type="scheduled_for",
+                            strength=0.8
+                        )
+                        if rel_result["success"]:
+                            relationships_added += 1
+            
+            # Query family planner for potential relationships
+            fp_result = self._enhanced_fp_query("all")
+            if fp_result["success"]:
+                # Look for family events that might relate to projects
+                import re
+                date_pattern = r'\d{4}-\d{2}-\d{2}'
+                dates = re.findall(date_pattern, fp_result["stdout"])
+                
+                for date in dates:
+                    # Find projects scheduled for this date
+                    pt_result_check = self.pt_query(["search", date])
+                    if pt_result_check["success"]:
+                        # Add relationship: family_event conflicts_with project
+                        import re
+                        project_titles = re.findall(r'Title: ([^\n]+)', pt_result_check["stdout"])
+                        for project_title in project_titles:
+                            rel_result = self.add_relationship(
+                                source_entity=date,
+                                source_type="date",
+                                target_entity=project_title.strip(),
+                                target_type="project",
+                                relationship_type="conflicts_with",
+                                strength=0.7
+                            )
+                            if rel_result["success"]:
+                                relationships_added += 1
+            
+            return {
+                "success": True,
+                "message": f"Knowledge graph built successfully with {relationships_added} relationships added",
+                "relationships_added": relationships_added
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 def main():

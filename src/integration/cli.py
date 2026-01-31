@@ -35,6 +35,28 @@ def main():
     context_parser = subparsers.add_parser('context', help='Determine best system for a query using contextual intelligence')
     context_parser.add_argument('query', help='Query to analyze for system selection')
     
+    # Add knowledge graph commands
+    kg_parser = subparsers.add_parser('kg', help='Knowledge graph operations')
+    kg_subparsers = kg_parser.add_subparsers(dest='kg_command')
+    
+    # Sub-command for building the knowledge graph
+    kg_build_parser = kg_subparsers.add_parser('build', help='Build knowledge graph from existing data')
+    
+    # Sub-command for adding relationships
+    kg_add_parser = kg_subparsers.add_parser('add', help='Add a relationship to the knowledge graph')
+    kg_add_parser.add_argument('source_entity', help='Source entity')
+    kg_add_parser.add_argument('source_type', help='Type of source entity')
+    kg_add_parser.add_argument('target_entity', help='Target entity')
+    kg_add_parser.add_argument('target_type', help='Type of target entity')
+    kg_add_parser.add_argument('relationship_type', help='Type of relationship')
+    kg_add_parser.add_argument('--strength', type=float, default=1.0, help='Strength of relationship (0.0 to 1.0)')
+    
+    # Sub-command for querying related entities
+    kg_query_parser = kg_subparsers.add_parser('query', help='Query entities related to a specific entity')
+    kg_query_parser.add_argument('entity', help='Entity to find relationships for')
+    kg_query_parser.add_argument('--type', dest='entity_type', help='Type of the entity')
+    kg_query_parser.add_argument('--rel-type', dest='relationship_type', help='Type of relationship to filter by')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -113,6 +135,32 @@ def main():
         query = args.query
         result = interface.determine_best_system(query)
         print(json.dumps(result, indent=2))
+    
+    # Knowledge graph commands
+    elif args.command == 'kg':
+        if args.kg_command == 'build':
+            result = interface.build_knowledge_graph()
+            print(json.dumps(result, indent=2))
+        elif args.kg_command == 'add':
+            result = interface.add_relationship(
+                source_entity=args.source_entity,
+                source_type=args.source_type,
+                target_entity=args.target_entity,
+                target_type=args.target_type,
+                relationship_type=args.relationship_type,
+                strength=args.strength
+            )
+            print(json.dumps(result, indent=2))
+        elif args.kg_command == 'query':
+            result = interface.get_related_entities(
+                entity=args.entity,
+                entity_type=args.entity_type,
+                relationship_type=args.relationship_type
+            )
+            print(json.dumps(result, indent=2))
+        else:
+            print("Usage: integrate kg [build|add|query]")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
