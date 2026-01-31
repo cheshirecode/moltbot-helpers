@@ -228,21 +228,148 @@ class UnifiedInterface:
         
         # Attempt to query family planner (if relevant)
         # We'll try to detect if the query relates to family/financial matters
-        if any(word in query.lower() for word in ["family", "finance", "budget", "balance", "task", "date", "event"]):
+        if any(word in query.lower() for word in ["family", "finance", "budget", "balance", "task", "date", "event", "people", "person", "birth", "anniversary", "appointment", "reminder"]):
             fp_result = self.fp_query(["search", query])
             results["family_planner"] = fp_result
         else:
-            results["family_planner"] = {"success": True, "stdout": "Query not relevant to family planning", "skipped": True}
+            # Still attempt to find connections by searching for tasks or dates that might relate to projects
+            fp_result = self._enhanced_fp_query(query)
+            results["family_planner"] = fp_result
         
         # Attempt semantic search for broader context
         seek_result = self.seek_query(["search", query])
         results["semantic_search"] = seek_result
+        
+        # Perform enhanced cross-referencing analysis
+        enhanced_analysis = self._perform_enhanced_cross_reference(pt_result, fp_result, query)
+        results["cross_reference_analysis"] = enhanced_analysis
         
         return {
             "query": query,
             "timestamp": datetime.now().isoformat(),
             "results": results
         }
+    
+    def _enhanced_fp_query(self, query: str) -> Dict[str, Any]:
+        """Enhanced family planner query that attempts to find connections even when initial detection doesn't match."""
+        try:
+            from fp.cli import main as fp_main
+            # Look for potential matches by checking if the query relates to known projects or tasks
+            db_path = os.path.expanduser("~/projects/_openclaw/family-planning.db")
+            if not os.path.exists(db_path):
+                return {"success": False, "stdout": "", "stderr": "Family planning database not found", "return_code": 1}
+            
+            # Attempt to find connections between projects and family data
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Check if query might match any family planning categories or topics
+            possible_matches = []
+            query_lower = query.lower()
+            
+            # Search in various family planning tables for potential matches
+            try:
+                # Search in tasks
+                cursor.execute("SELECT id, action, category, due_date FROM tasks WHERE status != 'DONE' AND (action LIKE ? OR category LIKE ?)", (f'%{query}%', f'%{query}%'))
+                task_results = cursor.fetchall()
+                if task_results:
+                    possible_matches.append(f"Family tasks related to '{query}': {len(task_results)} found")
+                
+                # Search in key dates
+                cursor.execute("SELECT label, date, category FROM key_dates WHERE label LIKE ? OR category LIKE ?", (f'%{query}%', f'%{query}%'))
+                date_results = cursor.fetchall()
+                if date_results:
+                    possible_matches.append(f"Family dates related to '{query}': {len(date_results)} found")
+                    
+                # Search in facts
+                cursor.execute("SELECT topic, key, value FROM facts WHERE topic LIKE ? OR key LIKE ? OR value LIKE ?", (f'%{query}%', f'%{query}%', f'%{query}%'))
+                fact_results = cursor.fetchall()
+                if fact_results:
+                    possible_matches.append(f"Family facts related to '{query}': {len(fact_results)} found")
+                
+                conn.close()
+                
+                if possible_matches:
+                    return {
+                        "success": True,
+                        "stdout": "\n".join(possible_matches),
+                        "stderr": "",
+                        "return_code": 0
+                    }
+                else:
+                    return {
+                        "success": True,
+                        "stdout": "Query not directly relevant to family planning data",
+                        "stderr": "",
+                        "return_code": 0
+                    }
+            except Exception as e:
+                conn.close()
+                return {
+                    "success": False,
+                    "stdout": "",
+                    "stderr": str(e),
+                    "return_code": 1
+                }
+                
+        except ImportError:
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": "fp module not available",
+                "return_code": 1
+            }
+    
+    def _perform_enhanced_cross_reference(self, pt_result: Dict[str, Any], fp_result: Dict[str, Any], original_query: str) -> Dict[str, Any]:
+        """Perform enhanced analysis to find connections between project tracker and family planner data."""
+        analysis = {
+            "connections_found": [],
+            "recommendations": [],
+            "conflicts_identified": [],
+            "opportunities": []
+        }
+        
+        # Analyze project tracker results
+        if pt_result.get("success") and pt_result.get("stdout"):
+            pt_text = pt_result["stdout"]
+            # Look for potential conflicts or overlaps with family data
+            
+            # Check for dates that might conflict with family events
+            import re
+            date_patterns = [
+                r'\d{4}-\d{2}-\d{2}',  # YYYY-MM-DD
+                r'\d{2}/\d{2}/\d{4}',  # MM/DD/YYYY
+                r'\d{2}-\d{2}-\d{4}'   # MM-DD-YYYY
+            ]
+            
+            for pattern in date_patterns:
+                dates = re.findall(pattern, pt_text)
+                if dates:
+                    analysis["opportunities"].append(f"Potential project deadlines identified: {', '.join(dates[:5])} - check against family calendar")
+        
+        # Analyze family planner results
+        if fp_result.get("success") and fp_result.get("stdout"):
+            fp_text = fp_result["stdout"]
+            
+            # Look for high-priority family tasks that might impact project work
+            if "high" in fp_text.lower() or "urgent" in fp_text.lower():
+                analysis["recommendations"].append("High-priority family tasks detected that may require scheduling adjustments for project work")
+            
+            # Check for upcoming family events that might impact project timeline
+            if "event" in fp_text.lower() or "appointment" in fp_text.lower() or "birthday" in fp_text.lower() or "anniversary" in fp_text.lower():
+                analysis["conflicts_identified"].append("Upcoming family events identified - consider rescheduling intensive project work around these dates")
+        
+        # Look for general connections between the datasets
+        if pt_result.get("success") and fp_result.get("success"):
+            pt_content = pt_result.get("stdout", "").lower()
+            fp_content = fp_result.get("stdout", "").lower()
+            
+            # Check if the same topics appear in both systems
+            if any(topic in pt_content for topic in ["family", "personal", "home"]) and \
+               any(topic in fp_content for topic in ["project", "work", "development", "task"]):
+                analysis["connections_found"].append("Cross-domain connection identified: personal/family topics in project work and work topics in family planning")
+        
+        return analysis
     
     def get_recommendations(self, context: str = "") -> Dict[str, Any]:
         """

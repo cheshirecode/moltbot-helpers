@@ -54,34 +54,50 @@ def main():
     elif args.command == 'status':
         # Test connectivity to all systems
         status = {
+            "timestamp": "2026-01-31T01:32:45",
             "systems": {
-                "project_tracker": {"status": "reachable"},
-                "family_planner": {"status": "reachable"},
-                "semantic_search": {"status": "reachable"}
+                "project_tracker": {"status": "reachable", "details": {}},
+                "family_planner": {"status": "reachable", "details": {}},
+                "semantic_search": {"status": "reachable", "details": {}}
             },
             "integration": {
-                "unified_interface": {"status": "active"}
+                "unified_interface": {"status": "active", "version": "1.0.0"}
             }
         }
         
-        # Test each system individually
+        # Test each system individually with more detail
         try:
             pt_test = interface.pt_query(['list'])
             status["systems"]["project_tracker"]["status"] = "reachable" if pt_test["success"] else "unreachable"
-        except Exception:
+            if pt_test["success"]:
+                # Extract basic stats from the output
+                lines = pt_test["stdout"].split('\n')
+                project_count = sum(1 for line in lines if line.startswith("ID:"))
+                status["systems"]["project_tracker"]["details"] = {"projects_tracked": project_count}
+        except Exception as e:
             status["systems"]["project_tracker"]["status"] = "error"
+            status["systems"]["project_tracker"]["error"] = str(e)
         
         try:
             fp_test = interface.fp_query(['tasks'])
             status["systems"]["family_planner"]["status"] = "reachable" if fp_test["success"] else "unreachable"
-        except Exception:
+            if fp_test["success"]:
+                # Extract basic stats from the output
+                lines = fp_test["stdout"].split('\n')
+                task_count = sum(1 for line in lines if "|" in line and "action" not in line.lower())
+                status["systems"]["family_planner"]["details"] = {"tasks_open": task_count}
+        except Exception as e:
             status["systems"]["family_planner"]["status"] = "error"
+            status["systems"]["family_planner"]["error"] = str(e)
             
         try:
             seek_test = interface.seek_query(['status'])
             status["systems"]["semantic_search"]["status"] = "reachable" if seek_test["success"] else "unreachable"
-        except Exception:
+            if seek_test["success"]:
+                status["systems"]["semantic_search"]["details"] = {"status_output_length": len(seek_test["stdout"])}
+        except Exception as e:
             status["systems"]["semantic_search"]["status"] = "error"
+            status["systems"]["semantic_search"]["error"] = str(e)
         
         print(json.dumps(status, indent=2))
 
