@@ -5,6 +5,7 @@ This module provides a unified command interface that integrates:
 - fp (Family Planner) - for family financial data, tasks, dates
 - seek (Semantic Search) - for local semantic search with vector embeddings
 - pt (Project Tracker) - for project tasks, roadmap items, bugs
+- memory (Memory System) - for enhanced memory management with semantic search
 """
 import json
 import sqlite3
@@ -15,14 +16,22 @@ from datetime import datetime
 
 class UnifiedInterface:
     """
-    A unified interface that integrates fp, seek, and pt tools to allow
+    A unified interface that integrates fp, seek, pt, and memory tools to allow
     intelligent cross-referencing between family planning data, semantic search,
-    and project tracking.
+    project tracking, and enhanced memory management.
     """
     
     def __init__(self, db_path: str = None):
         """Initialize the unified interface with optional database path override."""
         self.db_path = db_path or os.path.expanduser("~/projects/_openclaw/project-tracker.db")
+        
+        # Initialize memory manager for enhanced memory system
+        try:
+            from memory.memory_manager import MemoryManager
+            self.memory_manager = MemoryManager()
+        except ImportError:
+            self.memory_manager = None
+            print("Warning: Memory manager not available. Install required dependencies for enhanced memory system.")
         
     def fp_query(self, args: List[str]) -> Dict[str, Any]:
         """Execute an fp (family planner) command by importing the module directly."""
@@ -754,6 +763,163 @@ class UnifiedInterface:
                 "success": True,
                 "message": f"Knowledge graph built successfully with {relationships_added} relationships added",
                 "relationships_added": relationships_added
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def enhanced_memory_store(self, title: str, content: str, tags: List[str] = None, importance: float = 0.5) -> Dict[str, Any]:
+        """
+        Store a memory using the enhanced memory system with semantic indexing.
+        
+        Args:
+            title: Title of the memory
+            content: Content of the memory
+            tags: List of tags for categorization
+            importance: Importance rating (0.0 to 1.0)
+        
+        Returns:
+            Dictionary with success status and memory ID
+        """
+        if not self.memory_manager:
+            return {
+                "success": False,
+                "error": "Memory manager not available. Install required dependencies."
+            }
+        
+        try:
+            memory_id = self.memory_manager.store_memory(title, content, tags or [], importance)
+            return {
+                "success": True,
+                "memory_id": memory_id,
+                "message": f"Memory stored successfully with ID: {memory_id}"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def enhanced_memory_search(self, query: str, limit: int = 10, min_importance: float = 0.0) -> Dict[str, Any]:
+        """
+        Search memories using the enhanced memory system with semantic search capabilities.
+        
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            min_importance: Minimum importance threshold
+        
+        Returns:
+            Dictionary with search results
+        """
+        if not self.memory_manager:
+            return {
+                "success": False,
+                "error": "Memory manager not available. Install required dependencies."
+            }
+        
+        try:
+            results = self.memory_manager.search_memories(query, limit, min_importance)
+            return {
+                "success": True,
+                "query": query,
+                "results": results,
+                "count": len(results)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def enhanced_memory_get(self, memory_id: str) -> Dict[str, Any]:
+        """
+        Retrieve a specific memory by ID from the enhanced memory system.
+        
+        Args:
+            memory_id: ID of the memory to retrieve
+        
+        Returns:
+            Dictionary with memory details
+        """
+        if not self.memory_manager:
+            return {
+                "success": False,
+                "error": "Memory manager not available. Install required dependencies."
+            }
+        
+        try:
+            memory = self.memory_manager.get_memory(memory_id)
+            if memory:
+                return {
+                    "success": True,
+                    "memory": memory
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Memory not found"
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def enhanced_memory_get_recent(self, limit: int = 10) -> Dict[str, Any]:
+        """
+        Get the most recent memories from the enhanced memory system.
+        
+        Args:
+            limit: Number of recent memories to return
+        
+        Returns:
+            Dictionary with recent memories
+        """
+        if not self.memory_manager:
+            return {
+                "success": False,
+                "error": "Memory manager not available. Install required dependencies."
+            }
+        
+        try:
+            memories = self.memory_manager.get_recent_memories(limit)
+            return {
+                "success": True,
+                "memories": memories,
+                "count": len(memories)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def enhanced_memory_get_high_importance(self, limit: int = 10, min_importance: float = 0.7) -> Dict[str, Any]:
+        """
+        Get high importance memories from the enhanced memory system.
+        
+        Args:
+            limit: Number of memories to return
+            min_importance: Minimum importance threshold
+        
+        Returns:
+            Dictionary with high importance memories
+        """
+        if not self.memory_manager:
+            return {
+                "success": False,
+                "error": "Memory manager not available. Install required dependencies."
+            }
+        
+        try:
+            memories = self.memory_manager.get_high_importance_memories(limit, min_importance)
+            return {
+                "success": True,
+                "memories": memories,
+                "count": len(memories)
             }
         except Exception as e:
             return {

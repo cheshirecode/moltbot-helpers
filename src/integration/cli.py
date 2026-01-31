@@ -57,6 +57,36 @@ def main():
     kg_query_parser.add_argument('--type', dest='entity_type', help='Type of the entity')
     kg_query_parser.add_argument('--rel-type', dest='relationship_type', help='Type of relationship to filter by')
     
+    # Add enhanced memory system commands
+    mem_parser = subparsers.add_parser('memory', help='Enhanced memory system operations')
+    mem_subparsers = mem_parser.add_subparsers(dest='mem_command')
+    
+    # Sub-command for storing memories
+    mem_store_parser = mem_subparsers.add_parser('store', help='Store a memory')
+    mem_store_parser.add_argument('title', help='Title of the memory')
+    mem_store_parser.add_argument('content', help='Content of the memory')
+    mem_store_parser.add_argument('--tags', nargs='+', help='Tags for the memory')
+    mem_store_parser.add_argument('--importance', type=float, default=0.5, help='Importance rating (0.0 to 1.0)')
+    
+    # Sub-command for searching memories
+    mem_search_parser = mem_subparsers.add_parser('search', help='Search memories')
+    mem_search_parser.add_argument('query', help='Search query')
+    mem_search_parser.add_argument('--limit', type=int, default=10, help='Maximum number of results')
+    mem_search_parser.add_argument('--min-importance', type=float, default=0.0, help='Minimum importance threshold')
+    
+    # Sub-command for retrieving a specific memory
+    mem_get_parser = mem_subparsers.add_parser('get', help='Retrieve a specific memory')
+    mem_get_parser.add_argument('memory_id', help='ID of the memory to retrieve')
+    
+    # Sub-command for getting recent memories
+    mem_recent_parser = mem_subparsers.add_parser('recent', help='Get recent memories')
+    mem_recent_parser.add_argument('--limit', type=int, default=10, help='Number of recent memories to return')
+    
+    # Sub-command for getting high importance memories
+    mem_high_parser = mem_subparsers.add_parser('high-importance', help='Get high importance memories')
+    mem_high_parser.add_argument('--limit', type=int, default=10, help='Number of memories to return')
+    mem_high_parser.add_argument('--min-importance', type=float, default=0.7, help='Minimum importance threshold')
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -160,6 +190,39 @@ def main():
             print(json.dumps(result, indent=2))
         else:
             print("Usage: integrate kg [build|add|query]")
+            sys.exit(1)
+    
+    # Enhanced memory system commands
+    elif args.command == 'memory':
+        if args.mem_command == 'store':
+            result = interface.enhanced_memory_store(
+                title=args.title,
+                content=args.content,
+                tags=args.tags,
+                importance=args.importance
+            )
+            print(json.dumps(result, indent=2))
+        elif args.mem_command == 'search':
+            result = interface.enhanced_memory_search(
+                query=args.query,
+                limit=args.limit,
+                min_importance=args.min_importance
+            )
+            print(json.dumps(result, indent=2))
+        elif args.mem_command == 'get':
+            result = interface.enhanced_memory_get(args.memory_id)
+            print(json.dumps(result, indent=2))
+        elif args.mem_command == 'recent':
+            result = interface.enhanced_memory_get_recent(limit=args.limit)
+            print(json.dumps(result, indent=2))
+        elif args.mem_command == 'high-importance':
+            result = interface.enhanced_memory_get_high_importance(
+                limit=args.limit,
+                min_importance=args.min_importance
+            )
+            print(json.dumps(result, indent=2))
+        else:
+            print("Usage: integrate memory [store|search|get|recent|high-importance]")
             sys.exit(1)
 
 
