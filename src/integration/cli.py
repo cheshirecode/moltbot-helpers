@@ -86,6 +86,25 @@ def main():
     mem_high_parser = mem_subparsers.add_parser('high-importance', help='Get high importance memories')
     mem_high_parser.add_argument('--limit', type=int, default=10, help='Number of memories to return')
     mem_high_parser.add_argument('--min-importance', type=float, default=0.7, help='Minimum importance threshold')
+
+    # Add automation commands
+    auto_parser = subparsers.add_parser('automation', help='Automation (trigger) system operations')
+    auto_subparsers = auto_parser.add_subparsers(dest='auto_command')
+
+    # Sub-command for adding a trigger
+    auto_add_parser = auto_subparsers.add_parser('add-trigger', help='Add a new trigger')
+    auto_add_parser.add_argument('name', help='Unique name for the trigger')
+    auto_add_parser.add_argument('type', help='Type of the trigger (e.g., project_status_change)')
+    auto_add_parser.add_argument('condition', help='JSON string of condition details')
+    auto_add_parser.add_argument('action', help='JSON string of action details')
+    auto_add_parser.add_argument('--enabled', action='store_true', help='Enable the trigger by default')
+
+    # Sub-command for listing triggers
+    auto_list_parser = auto_subparsers.add_parser('list-triggers', help='List all configured triggers')
+    auto_list_parser.add_argument('--all', action='store_true', help='List all triggers, including disabled ones')
+
+    # Sub-command for checking triggers
+    auto_check_parser = auto_subparsers.add_parser('check-triggers', help='Manually run a check for all triggers')
     
     args = parser.parse_args()
     
@@ -223,6 +242,27 @@ def main():
             print(json.dumps(result, indent=2))
         else:
             print("Usage: integrate memory [store|search|get|recent|high-importance]")
+            sys.exit(1)
+    
+    # Automation commands
+    elif args.command == 'automation':
+        if args.auto_command == 'add-trigger':
+            result = interface.automation_add_trigger(
+                name=args.name,
+                type=args.type,
+                condition=json.loads(args.condition), # Deserialize JSON string to dict
+                action=json.loads(args.action),       # Deserialize JSON string to dict
+                enabled=args.enabled
+            )
+            print(json.dumps(result, indent=2))
+        elif args.auto_command == 'list-triggers':
+            result = interface.automation_list_triggers(enabled_only=not args.all)
+            print(json.dumps(result, indent=2))
+        elif args.auto_command == 'check-triggers':
+            result = interface.automation_check_triggers()
+            print(json.dumps(result, indent=2))
+        else:
+            print("Usage: integrate automation [add-trigger|list-triggers|check-triggers]")
             sys.exit(1)
 
 

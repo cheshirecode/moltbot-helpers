@@ -13,6 +13,11 @@ import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
+# Import the new MemoryManager
+from memory.memory_manager import MemoryManager
+# Import the new TriggerManager
+from automation.trigger_manager import TriggerManager
+
 
 class UnifiedInterface:
     """
@@ -32,6 +37,13 @@ class UnifiedInterface:
         except ImportError:
             self.memory_manager = None
             print("Warning: Memory manager not available. Install required dependencies for enhanced memory system.")
+
+        # Initialize trigger manager for automation
+        try:
+            self.trigger_manager = TriggerManager()
+        except ImportError:
+            self.trigger_manager = None
+            print("Warning: Trigger manager not available. Install required dependencies for automation system.")
         
     def fp_query(self, args: List[str]) -> Dict[str, Any]:
         """Execute an fp (family planner) command by importing the module directly."""
@@ -926,6 +938,26 @@ class UnifiedInterface:
                 "success": False,
                 "error": str(e)
             }
+
+    def automation_add_trigger(self, name: str, type: str, condition: Dict, action: Dict, enabled: bool = True) -> Dict[str, Any]:
+        """Add a new trigger using the TriggerManager."""
+        if not self.trigger_manager:
+            return {"success": False, "error": "Trigger manager not available."}
+        return self.trigger_manager.add_trigger(name, type, condition, action, enabled)
+
+    def automation_list_triggers(self, enabled_only: bool = True) -> List[Dict[str, Any]]:
+        """List triggers using the TriggerManager."""
+        if not self.trigger_manager:
+            return [{"success": False, "error": "Trigger manager not available."}]
+        return self.trigger_manager.list_triggers(enabled_only)
+
+    def automation_check_triggers(self):
+        """Check all triggers using the TriggerManager."""
+        if not self.trigger_manager:
+            return {"success": False, "error": "Trigger manager not available."}
+        self.trigger_manager.check_for_triggers()
+        return {"success": True, "message": "Trigger check initiated."}
+
 
 
 def main():
