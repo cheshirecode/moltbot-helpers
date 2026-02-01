@@ -13,10 +13,25 @@ import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
+# Ensure os is available before attempting relative imports
+import os
+import sys
+
 # Import the new MemoryManager
-from memory.memory_manager import MemoryManager
+try:
+    from ..memory.memory_manager import MemoryManager
+except (ImportError, ValueError):
+    # Handle relative import issue when running directly
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from memory.memory_manager import MemoryManager
+
 # Import the new TriggerManager
-from automation.trigger_manager import TriggerManager
+try:
+    from ..automation.trigger_manager import TriggerManager
+except (ImportError, ValueError):
+    # Handle relative import issue when running directly
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from automation.trigger_manager import TriggerManager
 
 
 class UnifiedInterface:
@@ -28,22 +43,41 @@ class UnifiedInterface:
     
     def __init__(self, db_path: str = None):
         """Initialize the unified interface with optional database path override."""
+        # Ensure os is available
+        import os
         self.db_path = db_path or os.path.expanduser("~/projects/_openclaw/project-tracker.db")
         
         # Initialize memory manager for enhanced memory system
         try:
-            from memory.memory_manager import MemoryManager
+            from ..memory.memory_manager import MemoryManager
             self.memory_manager = MemoryManager()
-        except ImportError:
-            self.memory_manager = None
-            print("Warning: Memory manager not available. Install required dependencies for enhanced memory system.")
+        except (ImportError, ValueError):
+            # Handle relative import issue when running directly
+            try:
+                import sys
+                import os
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+                from memory.memory_manager import MemoryManager
+                self.memory_manager = MemoryManager()
+            except ImportError:
+                self.memory_manager = None
+                print("Warning: Memory manager not available. Install required dependencies for enhanced memory system.")
 
         # Initialize trigger manager for automation
         try:
+            from ..automation.trigger_manager import TriggerManager
             self.trigger_manager = TriggerManager()
-        except ImportError:
-            self.trigger_manager = None
-            print("Warning: Trigger manager not available. Install required dependencies for automation system.")
+        except (ImportError, ValueError):
+            # Handle relative import issue when running directly
+            try:
+                import sys
+                import os
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+                from automation.trigger_manager import TriggerManager
+                self.trigger_manager = TriggerManager()
+            except ImportError:
+                self.trigger_manager = None
+                print("Warning: Trigger manager not available. Install required dependencies for automation system.")
         
     def fp_query(self, args: List[str]) -> Dict[str, Any]:
         """Execute an fp (family planner) command by importing the module directly."""

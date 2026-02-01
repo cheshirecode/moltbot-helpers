@@ -7,7 +7,14 @@ fp, seek, and pt tools.
 import argparse
 import sys
 import json
-from .unified_interface import UnifiedInterface
+try:
+    from .unified_interface import UnifiedInterface
+except ImportError:
+    # Handle relative import issue when running directly
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from integration.unified_interface import UnifiedInterface
 
 
 def main():

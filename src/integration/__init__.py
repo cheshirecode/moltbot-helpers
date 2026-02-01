@@ -1,1 +1,3 @@
-"""Integration module for unified command interface between fp, seek, and pt tools."""
+"""
+Integration module initialization for OpenClaw
+"""

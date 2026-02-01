@@ -1,16 +1,34 @@
 #!/usr/bin/env python3
 """
 Unified Interface for OpenClaw Integration
-Integrates fp, seek, and pt tools for intelligent cross-referencing.
+Integrates fp, seek, pt, and sync tools for intelligent cross-referencing.
 """
 
 import sys
 import os
+import argparse
 
 # Add the src directory to the path so we can import the integration utility
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from integration.cli import main
+def run_integration():
+    from integration.cli import main
+    main()
+
+def run_sync():
+    from sync.cli import main
+    main()
+
+def main():
+    # For backward compatibility, run the original integration by default
+    if len(sys.argv) <= 1:
+        run_integration()
+    else:
+        # Check if the first argument is for sync functionality
+        if sys.argv[1] in ['sync', 'start-service', 'stop-service']:
+            run_sync()
+        else:
+            run_integration()
 
 if __name__ == "__main__":
     main()
