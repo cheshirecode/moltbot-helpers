@@ -1,6 +1,6 @@
 # moltbot-helpers
 
-Two CLI tools for Moltbot: `fp` (family planner) and `seek` (local semantic search).
+CLI tools for Moltbot/OpenClaw systems: `fp` (family planner), `seek` (local semantic search), `pt` (project tracker), `integrate` (unified interface), `backup` (backup utility), `sync` (synchronization), and `service-manager` (process management).
 
 ## Install
 
@@ -50,3 +50,75 @@ Create `~/.config/seek/config.json` (or set `SEEK_CONFIG` env var):
   "chunkOverlap": 32
 }
 ```
+
+## pt — Project Tracker
+
+Track and manage projects, tasks, and roadmap items in a local SQLite database.
+
+```bash
+pt list                    # List all tasks
+pt --project openclaw list # List tasks for specific project
+pt add "New task" --project openclaw --priority high --category dev
+pt complete <task-id>      # Mark task as complete
+```
+
+## integrate — Unified Interface
+
+Cross-reference and integrate data between different systems.
+
+```bash
+integrate cross-ref "query"     # Cross-reference between systems
+integrate recommendations       # Get recommendations based on current state
+integrate project-context       # Get context about projects
+integrate status                # Show integration status
+```
+
+## backup — Backup Utility
+
+Create and manage backups of Moltbot/OpenClaw systems.
+
+```bash
+backup create                 # Create a backup
+backup list                   # List available backups
+backup restore <backup-name>  # Restore from a backup
+backup info                   # Show backup information
+```
+
+## sync — Synchronization Service
+
+Synchronize data between different systems and sources.
+
+```bash
+sync status                   # Show synchronization status
+sync run                      # Run synchronization
+sync watch                    # Watch for changes and sync automatically
+```
+
+## service-manager — Process Management
+
+Manage Moltbot/OpenClaw services and processes.
+
+```bash
+service-manager status        # Show service status
+service-manager start         # Start services
+service-manager stop          # Stop services
+service-manager restart       # Restart services
+```
+
+## lookup — Documentation Lookup
+
+Quickly look up documentation and information about the system.
+
+```bash
+lookup tools                  # Get information about tools
+lookup commands               # Get information about commands
+lookup <topic>                # Look up specific topic
+```
+
+## Docker Support
+
+The project includes Docker support with externalizable data sources:
+
+- `Dockerfile` - Standard Dockerfile that creates empty databases
+- `Dockerfile.quick` - Optimized Dockerfile with externalized data sources for persistence
+- See `docker-readme.md` for detailed Docker usage instructions
