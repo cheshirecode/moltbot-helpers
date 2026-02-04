@@ -156,6 +156,20 @@ lookup commands               # Get information about commands
 lookup <topic>                # Look up specific topic
 ```
 
+## Architecture Note: CLI Wrapper Scripts
+
+The following tools are implemented as executable Python wrapper scripts without file extensions for optimal command-line usage:
+
+- `backup` - Python wrapper script for backup functionality
+- `integrate` - Python wrapper script for unified interface
+- `lookup` - Python wrapper script for documentation lookup
+- `pt` - Python wrapper script for project tracker
+- `service-manager` - Python wrapper script for process management
+- `sync` - Python wrapper script for synchronization
+
+These are executable Python scripts designed to work as command-line tools. While they contain Python code, they're named without `.py` extensions to provide cleaner command-line interfaces (users run `backup` rather than `backup.py`).
+```
+
 ## Docker Support
 
 The project includes Docker support with externalizable data sources:
