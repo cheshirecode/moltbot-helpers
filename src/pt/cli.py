@@ -12,7 +12,8 @@ import sqlite3
 import sys
 from datetime import datetime
 
-DATABASE_PATH = os.path.expanduser("~/projects/_openclaw/project-tracker.db")
+# Use environment variable for database path if available, otherwise default
+DATABASE_PATH = os.path.expanduser(os.environ.get("PROJECT_TRACKER_DB_PATH", "~/projects/_openclaw/project-tracker.db"))
 
 def get_connection():
     """Establish a connection to the SQLite database."""

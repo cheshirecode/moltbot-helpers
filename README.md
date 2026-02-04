@@ -1,8 +1,32 @@
 # moltbot-helpers
 
-CLI tools for Moltbot/OpenClaw systems: `fp` (family planner), `seek` (local semantic search), `pt` (project tracker), `integrate` (unified interface), `backup` (backup utility), `sync` (synchronization), and `service-manager` (process management).
+CLI tools for Moltbot/OpenClaw systems: `fp` (family planner), `seek` (local semantic search), `pt` (project tracker), `gc` (Google Calendar), `integrate` (unified interface), `backup` (backup utility), `sync` (synchronization), and `service-manager` (process management).
 
-## Install
+## Security-First Docker Approach
+
+For security reasons, it's strongly recommended to run all tools in Docker containers with externalized data sources. This approach provides:
+
+- Isolated execution environment
+- No direct access to host credentials
+- Better privilege separation
+- Secure data handling
+
+### Docker Installation (Recommended)
+
+```bash
+# Build the Docker image with externalized data sources
+cd ~/projects/moltbot-helpers
+docker build -f Dockerfile.quick -t moltbot-helpers-quick .
+
+# Use the tools via Docker aliases (configured in .shell_common)
+pt --project openclaw list
+fp tasks
+seek search "query"
+```
+
+### Local Installation (Use with caution)
+
+⚠️ **Warning**: Local installation may expose credentials. Only use if necessary.
 
 ```bash
 cd ~/projects/moltbot-helpers
@@ -84,26 +108,43 @@ backup restore <backup-name>  # Restore from a backup
 backup info                   # Show backup information
 ```
 
-## sync — Synchronization Service
+## gc — Google Calendar
 
-Synchronize data between different systems and sources.
+Perform CRUD operations against Google Calendar.
 
 ```bash
-sync status                   # Show synchronization status
-sync run                      # Run synchronization
-sync watch                    # Watch for changes and sync automatically
+gc list-calendars           # List all available calendars
+gc list-events              # List events from a calendar (default: next 7 days)
+gc create --summary "Title" --start "2026-02-01T10:00:00" --end "2026-02-01T11:00:00"  # Create new event
+gc update <event_id> --summary "New Title"  # Update an existing event
+gc delete <event_id>        # Delete an event
 ```
+
+Note: Requires Google Calendar authentication setup with proper OAuth credentials.
+
+## sync — Synchronization Tool
+
+Synchronize and verify consistency between memory files and databases.
+
+```bash
+sync check                    # Check consistency between memory and database
+sync sync                     # Sync memory files to database
+sync export                   # Export database to memory file
+```
+
+Note: Real-time synchronization services have been deprecated in favor of database-as-source-of-truth model.
 
 ## service-manager — Process Management
 
-Manage Moltbot/OpenClaw services and processes.
+Manage Moltbot/OpenClaw services and processes (deprecated for new installations).
 
 ```bash
 service-manager status        # Show service status
-service-manager start         # Start services
-service-manager stop          # Stop services
-service-manager restart       # Restart services
+service-manager list          # List registered processes
+service-manager kill          # Kill specific process
 ```
+
+Note: Process management functionality has been deprecated as no persistent services are needed in the new architecture.
 
 ## lookup — Documentation Lookup
 

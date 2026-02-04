@@ -1,4 +1,4 @@
-# Moltbot Helpers Docker Setup
+# Moltbot Helpers Docker Setup - Security-First Approach
 
 This repository contains helper tools for OpenClaw/Moltbot systems, including:
 
@@ -11,12 +11,20 @@ This repository contains helper tools for OpenClaw/Moltbot systems, including:
 - `service-manager` - Process Manager
 - `lookup` - Documentation Lookup
 
+## Security Features
+
+The Docker image implements several security features:
+- Non-root user execution (runs as `moltbot` user)
+- Isolated environment with limited host access
+- Externalized data sources for secure data handling
+- Minimal attack surface with only required dependencies
+
 ## Docker Setup with External Data Sources
 
 Build the Docker image with externalizable data sources:
 
 ```bash
-# Use Dockerfile.quick for externalized data sources
+# Use Dockerfile.quick for externalized data sources with security enhancements
 docker build -f Dockerfile.quick -t moltbot-helpers-quick .
 ```
 
@@ -25,7 +33,7 @@ docker build -f Dockerfile.quick -t moltbot-helpers-quick .
 The Docker image is designed to work with external data sources mounted at runtime for persistence:
 
 ```bash
-# Basic usage with external data sources
+# Basic usage with external data sources (runs as non-root user)
 docker run -it \
   -v /path/to/my/data:/data/_openclaw \
   -v /path/to/my/workspace:/workspace \

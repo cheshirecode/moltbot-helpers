@@ -5,3 +5,29 @@ __pycache__/
 dist/
 build/
 seek_env
+# Google API credentials and tokens
+google_integration/client_secret*.json
+google_integration/google_token.pickle
+google_integration/google_credentials.json
+
+# Security and credential files
+.secrets/
+*.token
+*.key
+*.secret
+*.env
+.github_token
+.credentials
+*.pem
+*.crt
+*.cert
+*.pub
+config/secrets.*
+*.config.json
+tokens/
+
+# Shell configuration files that might contain credentials
+.shell_common
+.bashrc
+.zshrc
+.profile
