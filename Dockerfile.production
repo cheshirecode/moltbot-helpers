@@ -1,0 +1,65 @@
+# Production-ready Dockerfile for moltbot-helpers
+# Uses minimal base image and follows security best practices
+
+FROM python:3.12-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    DATA_DIR=/data \
+    WORKSPACE_DIR=/workspace \
+    PROJECT_TRACKER_DB_PATH=/data/_openclaw/project-tracker.db \
+    FP_DB=/data/_openclaw/family-planning.db \
+    SEEK_DB_PATH=/data/_openclaw/seek.db
+
+# Create a non-root user for security
+RUN groupadd -r moltbot && useradd -r -g moltbot -m -s /bin/bash moltbot
+
+# Install minimal system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set working directory
+WORKDIR /app
+
+# Copy essential project files
+COPY pyproject.toml .
+COPY src/ ./src/
+COPY backup service-manager sync integrate lookup pt ./
+
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir numpy thefuzz[speedup] psutil watchdog hatchling && \
+    pip install --no-cache-dir -e .
+
+# Create necessary directories with proper permissions
+RUN mkdir -p ${DATA_DIR}/_openclaw \
+    && mkdir -p ${WORKSPACE_DIR}/memory \
+    && chown -R moltbot:moltbot /app \
+    && chown -R moltbot:moltbot ${DATA_DIR} \
+    && chown -R moltbot:moltbot ${WORKSPACE_DIR}
+
+# Create symlinks for standalone scripts to make them available system-wide
+RUN ln -sf /app/backup /usr/local/bin/backup && \
+    ln -sf /app/service-manager /usr/local/bin/service-manager && \
+    ln -sf /app/sync /usr/local/bin/sync && \
+    ln -sf /app/integrate /usr/local/bin/integrate && \
+    ln -sf /app/lookup /usr/local/bin/lookup && \
+    ln -sf /app/pt /usr/local/bin/pt
+
+# Switch to non-root user
+USER moltbot
+
+# Set Python path to include source code
+ENV PYTHONPATH=/app/src:/app:$PYTHONPATH
+
+# Health check to ensure the container is working
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD pt --project openclaw count 2>/dev/null | grep -q "entries" || exit 1
+
+# Default command
+CMD ["/bin/bash"]
