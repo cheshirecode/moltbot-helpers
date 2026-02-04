@@ -160,6 +160,5 @@ lookup <topic>                # Look up specific topic
 
 The project includes Docker support with externalizable data sources:
 
-- `Dockerfile` - Standard Dockerfile that creates empty databases
-- `Dockerfile.quick` - Optimized Dockerfile with externalized data sources for persistence
+- `Dockerfile.quick` - Optimized Dockerfile with externalized data sources for persistence and security enhancements
 - See `docker-readme.md` for detailed Docker usage instructions
