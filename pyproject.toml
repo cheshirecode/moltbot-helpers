@@ -7,7 +7,9 @@ dependencies = [
     "thefuzz[speedup]>=0.20",
     "psutil>=5.9.0",
     "watchdog>=3.0.0",
-    "psycopg2-binary>=2.9.0"
+    "psycopg2-binary>=2.9.0",
+    "markdown>=3.4.0",
+    "beautifulsoup4>=4.12.0"
 ]
 
 [project.scripts]
@@ -16,6 +18,7 @@ seek = "seek.cli:main"
 pt = "pt.cli:main"
 pt_pg = "pt_pg.cli:main"
 gm = "gmail.cli:main"
+md2pg = "markdown_processor.cli:main"
 lookup = "lookup.cli:main"
 integrate = "integration.cli:main"
 gc = "gcal.cli:main"
@@ -25,6 +28,6 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/fp", "src/seek", "src/pt", "src/pt_pg", "src/lookup", "src/integration", "src/gcal", "src/gmail", "src/backup", "src/sync", "src/process_manager"]
+packages = ["src/fp", "src/seek", "src/pt", "src/pt_pg", "src/lookup", "src/integration", "src/gcal", "src/gmail", "src/markdown_processor", "src/backup", "src/sync", "src/process_manager"]
 
 [tool.hatch.build.force-include]

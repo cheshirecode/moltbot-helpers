@@ -34,6 +34,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir numpy thefuzz && \
     pip install --no-cache-dir psutil watchdog && \
     pip install --no-cache-dir psycopg2-binary && \
+    pip install --no-cache-dir markdown beautifulsoup4 && \
     pip install --no-cache-dir google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
 
 # Install the moltbot-helpers package to make CLI tools available (without ML dependencies for faster build)
