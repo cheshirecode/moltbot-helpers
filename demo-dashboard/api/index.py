@@ -163,8 +163,11 @@ def generate_indexeddb_setup_code(schema):
 
 def generate_dashboard_html():
     """Generate the dashboard HTML with embedded JavaScript for PostgreSQL-to-IndexedDB mirror."""
-    return """
-<!DOCTYPE html>
+    # Read the universal data adapter JS code
+    with open('/home/fred/projects/moltbot-helpers/shared-components/universal_data_adapter.js', 'r') as f:
+        universal_data_adapter_js = f.read()
+    
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -172,7 +175,7 @@ def generate_dashboard_html():
     <title>OpenClaw Demo Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
+        :root {{
             --primary-color: #4361ee;
             --secondary-color: #3f37c9;
             --success-color: #4cc9f0;
@@ -180,23 +183,23 @@ def generate_dashboard_html():
             --light-bg: #f8f9fa;
             --dark-text: #212529;
             --border-color: #dee2e6;
-        }
+        }}
         
-        body {
+        body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f5f7fb;
             color: var(--dark-text);
             line-height: 1.6;
-        }
+        }}
         
-        .container {
+        .container {{
             max-width: 1400px;
             margin: 0 auto;
-        }
+        }}
         
-        header {
+        header {{
             text-align: center;
             margin-bottom: 30px;
             padding: 20px;
@@ -204,183 +207,183 @@ def generate_dashboard_html():
             color: white;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+        }}
         
-        h1 {
+        h1 {{
             margin: 0;
             font-size: 2.5rem;
-        }
+        }}
         
-        .subtitle {
+        .subtitle {{
             font-size: 1.2rem;
             opacity: 0.9;
             margin-top: 10px;
-        }
+        }}
         
-        .intro {
+        .intro {{
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             margin-bottom: 30px;
             text-align: center;
-        }
+        }}
         
-        .controls {
+        .controls {{
             display: flex;
             gap: 15px;
             margin-bottom: 20px;
             flex-wrap: wrap;
             align-items: center;
-        }
+        }}
         
-        select, button {
+        select, button {{
             padding: 10px 15px;
             border: 1px solid var(--border-color);
             border-radius: 5px;
             font-size: 1rem;
-        }
+        }}
         
-        button {
+        button {{
             background-color: var(--primary-color);
             color: white;
             cursor: pointer;
             border: none;
-        }
+        }}
         
-        button:hover {
+        button:hover {{
             background-color: var(--secondary-color);
-        }
+        }}
         
-        .dashboard-grid {
+        .dashboard-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
-        }
+        }}
         
-        .card {
+        .card {{
             background: white;
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             transition: transform 0.2s;
-        }
+        }}
         
-        .card:hover {
+        .card:hover {{
             transform: translateY(-5px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
+        }}
         
-        .card-title {
+        .card-title {{
             font-size: 1.2rem;
             font-weight: 600;
             margin: 0 0 15px 0;
             color: var(--primary-color);
             border-bottom: 2px solid var(--light-bg);
             padding-bottom: 10px;
-        }
+        }}
         
-        .chart-container {
+        .chart-container {{
             position: relative;
             height: 300px;
             margin: 20px 0;
-        }
+        }}
         
-        .project-list {
+        .project-list {{
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
-        }
+        }}
         
-        .project-card {
+        .project-card {{
             background: white;
             border-radius: 8px;
             padding: 15px;
             border-left: 4px solid var(--primary-color);
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
+        }}
         
-        .project-header {
+        .project-header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
-        }
+        }}
         
-        .project-name {
+        .project-name {{
             font-weight: 600;
             font-size: 1.1rem;
             color: var(--secondary-color);
-        }
+        }}
         
-        .task-count {
+        .task-count {{
             background: var(--success-color);
             color: white;
             padding: 3px 8px;
             border-radius: 12px;
             font-size: 0.9rem;
-        }
+        }}
         
-        .progress-bar {
+        .progress-bar {{
             width: 100%;
             height: 8px;
             background-color: #e9ecef;
             border-radius: 4px;
             overflow: hidden;
             margin: 10px 0;
-        }
+        }}
         
-        .progress-fill {
+        .progress-fill {{
             height: 100%;
             background: linear-gradient(90deg, var(--success-color), var(--primary-color));
             border-radius: 4px;
-        }
+        }}
         
-        .stats-grid {
+        .stats-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin: 20px 0;
-        }
+        }}
         
-        .stat-card {
+        .stat-card {{
             background: white;
             padding: 15px;
             border-radius: 8px;
             text-align: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
+        }}
         
-        .stat-value {
+        .stat-value {{
             font-size: 2rem;
             font-weight: 700;
             color: var(--primary-color);
-        }
+        }}
         
-        .stat-label {
+        .stat-label {{
             font-size: 0.9rem;
             color: #6c757d;
-        }
+        }}
         
-        .disclaimer {
+        .disclaimer {{
             background: #fff3cd;
             color: #856404;
             padding: 15px;
             border-radius: 5px;
             margin: 20px 0;
             border-left: 4px solid #ffc107;
-        }
+        }}
         
-        .indexeddb-section {
+        .indexeddb-section {{
             background: #e8f4fd;
             border: 1px solid #b6d7ff;
             border-radius: 8px;
             padding: 20px;
             margin: 20px 0;
-        }
+        }}
         
-        .indexeddb-code {
+        .indexeddb-code {{
             background: #f8f9fa;
             border: 1px solid #dee2e6;
             border-radius: 5px;
@@ -389,15 +392,15 @@ def generate_dashboard_html():
             white-space: pre-wrap;
             overflow-x: auto;
             margin: 10px 0;
-        }
+        }}
         
-        .feature-highlight {
+        .feature-highlight {{
             background: #d4edda;
             border: 1px solid #c3e6cb;
             border-radius: 5px;
             padding: 15px;
             margin: 15px 0;
-        }
+        }}
     </style>
 </head>
 <body>
@@ -490,6 +493,9 @@ def generate_dashboard_html():
     </div>
 
     <script>
+        // Include the universal data adapter
+        {universal_data_adapter_js}
+        
         // Global variables to hold chart instances
         let statusChart = null;
         let priorityChart = null;
@@ -511,12 +517,10 @@ def generate_dashboard_html():
         
         async function loadAllProjects() {
             try {
-                // Fetch demo projects data
-                const response = await fetch('/api/demo/projects');
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status} ${response.statusText}`);
-                }
-                const projects = await response.json();
+                // Use the universal data adapter to fetch demo projects data
+                const apiAdapter = new window.ApiAdapter('/api');
+                const dataAdapter = new window.UniversalDataAdapter(apiAdapter);
+                const projects = await dataAdapter.getProjects();
                 
                 // Populate project selector
                 populateProjectSelector(projects.map(p => p.project));
@@ -553,12 +557,10 @@ def generate_dashboard_html():
             }
             
             try {
-                // Fetch demo project details
-                const response = await fetch('/api/demo/project/' + encodeURIComponent(selectedProject));
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status} ${response.statusText}`);
-                }
-                const projectData = await response.json();
+                // Use the universal data adapter to fetch demo project details
+                const apiAdapter = new window.ApiAdapter('/api');
+                const dataAdapter = new window.UniversalDataAdapter(apiAdapter);
+                const projectData = await dataAdapter.getProjectDetails(selectedProject);
                 
                 displayProjectData(projectData);
                 
@@ -614,17 +616,17 @@ def generate_dashboard_html():
                 projectCard.className = 'project-card';
                 projectCard.innerHTML = `
                     <div class="project-header">
-                        <div class="project-name">${project.project}</div>
-                        <div class="task-count">${project.total_tasks}</div>
+                        <div class="project-name">${{project.project}}</div>
+                        <div class="task-count">${{project.total_tasks}}</div>
                     </div>
-                    <div>Total Tasks: ${project.total_tasks}</div>
-                    <div>Completed: ${project.completed_tasks}</div>
-                    <div>In Progress: ${project.in_progress_tasks}</div>
-                    <div>To Do: ${project.todo_tasks}</div>
+                    <div>Total Tasks: ${{project.total_tasks}}</div>
+                    <div>Completed: ${{project.completed_tasks}}</div>
+                    <div>In Progress: ${{project.in_progress_tasks}}</div>
+                    <div>To Do: ${{project.todo_tasks}}</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${progressPercent}%"></div>
+                        <div class="progress-fill" style="width: ${{progressPercent}}%"></div>
                     </div>
-                    <div>${progressPercent}% Complete</div>
+                    <div>${{progressPercent}}% Complete</div>
                 `;
                 
                 container.appendChild(projectCard);
@@ -639,8 +641,8 @@ def generate_dashboard_html():
                 const statCard = document.createElement('div');
                 statCard.className = 'stat-card';
                 statCard.innerHTML = `
-                    <div class="stat-value">${stat.value}</div>
-                    <div class="stat-label">${stat.label}</div>
+                    <div class="stat-value">${{stat.value}}</div>
+                    <div class="stat-label">${{stat.label}}</div>
                 `;
                 container.appendChild(statCard);
             });
@@ -733,12 +735,12 @@ def generate_dashboard_html():
                 taskEl.style.marginBottom = '10px';
                 
                 taskEl.innerHTML = `
-                    <div style="font-weight: bold;">${task.title}</div>
+                    <div style="font-weight: bold;">${{task.title}}</div>
                     <div style="font-size: 0.9em; color: #666;">
-                        ID: ${task.id} | Status: ${task.status} | Priority: ${task.priority} | Category: ${task.category}
+                        ID: ${{task.id}} | Status: ${{task.status}} | Priority: ${{task.priority}} | Category: ${{task.category}}
                     </div>
                     <div style="font-size: 0.8em; color: #888;">
-                        Created: ${task.created_date} | Updated: ${task.updated_date}
+                        Created: ${{task.created_date}} | Updated: ${{task.updated_date}}
                     </div>
                 `;
                 
@@ -752,14 +754,14 @@ def generate_dashboard_html():
             try {
                 const response = await fetch('/api/db/schema');
                 if (!response.ok) {
-                    throw new Error(`API error: ${response.status} ${response.statusText}`);
+                    throw new Error(`API error: ${{response.status}} ${{response.statusText}}`);
                 }
                 const schema = await response.json();
                 
                 // Generate IndexedDB setup code
                 const indexedDBCodeResponse = await fetch('/api/db/generate-indexeddb');
                 if (!indexedDBCodeResponse.ok) {
-                    throw new Error(`API error: ${indexedDBCodeResponse.status} ${indexedDBCodeResponse.statusText}`);
+                    throw new Error(`API error: ${{indexedDBCodeResponse.status}} ${{indexedDBCodeResponse.statusText}}`);
                 }
                 const indexedDBSetupCode = await indexedDBCodeResponse.text();
                 
@@ -767,12 +769,38 @@ def generate_dashboard_html():
                 document.getElementById('indexedDBSection').style.display = 'block';
                 
                 // Scroll to the IndexedDB section
-                document.getElementById('indexedDBSection').scrollIntoView({ behavior: 'smooth' });
+                document.getElementById('indexedDBSection').scrollIntoView({{ behavior: 'smooth' }});
             } catch (error) {
                 console.error('Error generating IndexedDB schema:', error);
                 showError('Error generating IndexedDB schema: ' + error.message);
             }
         }
+        
+        // Function to initialize offline capability
+        async function initializeOfflineMode() {
+            try {
+                // Initialize IndexedDB adapter
+                const indexedDBAdapter = new window.IndexedDBAdapter();
+                await indexedDBAdapter.init();
+                
+                // Create universal adapter with IndexedDB
+                const dataAdapter = new window.UniversalDataAdapter(indexedDBAdapter);
+                
+                // Sync from API if online
+                if (navigator.onLine) {
+                    const apiAdapter = new window.ApiAdapter('/api');
+                    const syncResult = await indexedDBAdapter.syncFromApi(apiAdapter);
+                    console.log('Sync result:', syncResult);
+                }
+                
+                console.log('Offline mode initialized');
+            } catch (error) {
+                console.error('Error initializing offline mode:', error);
+            }
+        }
+        
+        // Initialize offline capability when page loads
+        initializeOfflineMode();
     </script>
 </body>
 </html>
@@ -884,3 +912,4 @@ if __name__ == '__main__':
     # For local development
     app = create_app()
     app.run(debug=True, host='0.0.0.0', port=5000)
+"""
