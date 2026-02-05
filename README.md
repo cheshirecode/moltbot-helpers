@@ -215,23 +215,21 @@ New web-based dashboard for visualizing tasks from PostgreSQL database:
 
 Separate public-facing demo system showcasing capabilities without exposing internal data:
 
-- `demo_server.py` - Isolated demo server with synthetic data
-- `demo-plan.md` - Implementation plan for public demo
-- `demo` - Command to launch demo server (port 5001)
-- `vercel_server.py` - Vercel-compatible serverless version
-- `demo_worker.js` - Cloudflare Worker compatible version
-- `vercel.json` - Vercel configuration
-- `wrangler.toml` - Cloudflare Workers configuration
-- `worker-package.json` - Worker dependencies
-- `demo-deployment.md` - Deployment guide for multiple platforms
+- `demo-dashboard/` - Dedicated demo system for Vercel deployment
+- `ui/` - Main dashboard for internal use with real data
+- `demo_plan.md` - Implementation plan for public demo
+- `demo` - Command to launch main dashboard server (port 5000)
+- `launch_dashboard.sh` - Launch script for main dashboard
+- `deploy-demo-to-vercel.sh` - Deployment script for Vercel
+- `separation-readme.md` - Documentation for separated deployments
 - `templates/` - Shared UI templates for consistency
 - `templates/renderer.py` - Template rendering system
 - `templates/dashboard.html` - Shared dashboard template
 - Completely decoupled from main OpenClaw system for security
-- Uses synthetic data for realistic demonstrations
-- Available at http://localhost:5001/demo when running locally
-- Deployable to Vercel, Cloudflare Workers, Render, Railway, and other platforms
-- **Shared template architecture** for consistency across all deployments
+- Demo uses synthetic data, main dashboard uses real data
+- Main dashboard available locally at http://localhost:5000
+- Demo deployed to Vercel for public access
+- **Enhanced security** through complete environment separation
 
 ## Architecture
 

@@ -26,7 +26,6 @@ md2pg = "markdown_processor.cli:main"
 lookup = "lookup.cli:main"
 integrate = "integration.cli:main"
 gc = "gcal.cli:main"
-demo = "demo_server:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,0 +1,16 @@
+{
+  "name": "openclaw-demo-vercel",
+  "version": "1.0.0",
+  "description": "OpenClaw demo dashboard for Vercel deployment",
+  "scripts": {
+    "dev": "python -m http.server 3000",
+    "build": "echo 'Build completed'",
+    "start": "python -m http.server 3000"
+  },
+  "dependencies": {
+    "vercel": "^38.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
