@@ -218,9 +218,16 @@ Separate public-facing demo system showcasing capabilities without exposing inte
 - `demo_server.py` - Isolated demo server with synthetic data
 - `demo-plan.md` - Implementation plan for public demo
 - `demo` - Command to launch demo server (port 5001)
+- `vercel_server.py` - Vercel-compatible serverless version
+- `demo_worker.js` - Cloudflare Worker compatible version
+- `vercel.json` - Vercel configuration
+- `wrangler.toml` - Cloudflare Workers configuration
+- `worker-package.json` - Worker dependencies
+- `demo-deployment.md` - Deployment guide for multiple platforms
 - Completely decoupled from main OpenClaw system for security
 - Uses synthetic data for realistic demonstrations
-- Available at http://localhost:5001/demo when running
+- Available at http://localhost:5001/demo when running locally
+- Deployable to Vercel, Cloudflare Workers, Render, Railway, and other platforms
 
 ## Architecture
 

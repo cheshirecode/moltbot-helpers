@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "openclaw-demo",
+  "builds": [
+    {
+      "src": "vercel_server.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "vercel_server.py"
+    }
+  ]
+}
