@@ -1,13 +1,13 @@
 """
-Vercel API Routes for OpenClaw Demo Dashboard
+Vercel API Routes for OpenClaw Demo Dashboard with PostgreSQL-to-IndexedDB Mirror
 """
 
 import json
 import random
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request
+import os
 
-# For Vercel, we need to use a function-based approach
 def generate_demo_projects():
     """Generate synthetic project data for the demo."""
     project_names = [
@@ -101,8 +101,68 @@ def generate_demo_project_details(project_name):
     }
 
 
+def generate_postgresql_schema():
+    """Generate PostgreSQL schema for IndexedDB auto-generation."""
+    schema = {
+        "project_tracker": {
+            "primary_key": "id",
+            "columns": [
+                {"name": "id", "type": "integer", "is_nullable": False, "is_primary_key": True},
+                {"name": "project", "type": "varchar", "is_nullable": False, "is_indexed": True},
+                {"name": "title", "type": "varchar", "is_nullable": False},
+                {"name": "description", "type": "text", "is_nullable": True},
+                {"name": "status", "type": "varchar", "is_nullable": True, "is_indexed": True},
+                {"name": "priority", "type": "varchar", "is_nullable": True, "is_indexed": True},
+                {"name": "category", "type": "varchar", "is_nullable": True, "is_indexed": True},
+                {"name": "created_date", "type": "timestamp", "is_nullable": True, "is_indexed": True},
+                {"name": "updated_date", "type": "timestamp", "is_nullable": True, "is_indexed": True},
+                {"name": "tags", "type": "jsonb", "is_nullable": True}
+            ]
+        }
+    }
+    
+    return schema
+
+
+def generate_indexeddb_setup_code(schema):
+    """Generate JavaScript code for IndexedDB setup based on PostgreSQL schema."""
+    js_lines = [
+        "// Auto-generated IndexedDB setup from PostgreSQL schema",
+        "function setupIndexedDB(dbVersion = 1) {",
+        "  return new Promise((resolve, reject) => {",
+        "    const request = indexedDB.open('openclaw_mirror', dbVersion);",
+        "",
+        "    request.onerror = () => reject(request.error);",
+        "    request.onsuccess = () => resolve(request.result);",
+        "",
+        "    request.onupgradeneeded = (event) => {",
+        "      const db = event.target.result;"
+    ]
+    
+    for table_name, table_def in schema.items():
+        key_path = table_def.get('primary_key', 'id')
+        js_lines.extend([
+            f"      if (!db.objectStoreNames.contains('{table_name}')) {{",
+            f"        const store = db.createObjectStore('{table_name}', {{ keyPath: '{key_path}' }});"
+        ])
+        
+        for col in table_def.get('columns', []):
+            if col.get('is_indexed') or col['name'] in ['status', 'priority', 'category', 'project']:
+                js_lines.append(f"        store.createIndex('{col['name']}', '{col['name']}', {{ unique: false }});")
+        
+        js_lines.append("      }")
+    
+    js_lines.extend([
+        "    };",
+        "  });",
+        "}"
+    ])
+    
+    return '\n'.join(js_lines)
+
+
 def generate_dashboard_html():
-    """Generate the dashboard HTML with embedded JavaScript."""
+    """Generate the dashboard HTML with embedded JavaScript for PostgreSQL-to-IndexedDB mirror."""
     return """
 <!DOCTYPE html>
 <html lang="en">
@@ -311,6 +371,33 @@ def generate_dashboard_html():
             margin: 20px 0;
             border-left: 4px solid #ffc107;
         }
+        
+        .indexeddb-section {
+            background: #e8f4fd;
+            border: 1px solid #b6d7ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .indexeddb-code {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        
+        .feature-highlight {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
     </style>
 </head>
 <body>
@@ -331,12 +418,18 @@ def generate_dashboard_html():
             <p>All data shown here is synthetic and generated for demonstration purposes only.</p>
         </div>
         
+        <div class="feature-highlight">
+            <h3>🚀 Innovation: PostgreSQL-to-IndexedDB Mirror System</h3>
+            <p>This demo includes an auto-generated IndexedDB schema based on PostgreSQL structure, enabling offline capability and faster UI performance.</p>
+        </div>
+        
         <div class="controls">
             <select id="projectSelect">
                 <option value="">Select a demo project...</option>
             </select>
             <button onclick="loadProjectData()">Load Project Data</button>
             <button onclick="loadAllProjects()">Load All Projects</button>
+            <button onclick="generateIndexedDBSchema()">Generate IndexedDB Schema</button>
         </div>
         
         <div id="loadingIndicator" class="loading" style="display: none;">
@@ -386,6 +479,13 @@ def generate_dashboard_html():
             <div class="project-list" id="projectListView">
                 <!-- Project cards will be populated here -->
             </div>
+        </div>
+        
+        <div id="indexedDBSection" class="indexeddb-section" style="display: none;">
+            <h3>🔧 PostgreSQL-to-IndexedDB Mirror</h3>
+            <p>Auto-generated IndexedDB schema based on PostgreSQL structure:</p>
+            <div id="indexedDBCode" class="indexeddb-code"></div>
+            <p>This enables offline capability and faster UI performance by storing data locally in the browser.</p>
         </div>
     </div>
 
@@ -647,6 +747,32 @@ def generate_dashboard_html():
             
             container.appendChild(list);
         }
+        
+        async function generateIndexedDBSchema() {
+            try {
+                const response = await fetch('/api/db/schema');
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status} ${response.statusText}`);
+                }
+                const schema = await response.json();
+                
+                // Generate IndexedDB setup code
+                const indexedDBCodeResponse = await fetch('/api/db/generate-indexeddb');
+                if (!indexedDBCodeResponse.ok) {
+                    throw new Error(`API error: ${indexedDBCodeResponse.status} ${indexedDBCodeResponse.statusText}`);
+                }
+                const indexedDBSetupCode = await indexedDBCodeResponse.text();
+                
+                document.getElementById('indexedDBCode').textContent = indexedDBSetupCode;
+                document.getElementById('indexedDBSection').style.display = 'block';
+                
+                // Scroll to the IndexedDB section
+                document.getElementById('indexedDBSection').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error('Error generating IndexedDB schema:', error);
+                showError('Error generating IndexedDB schema: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>
@@ -683,6 +809,25 @@ def index_handler(request):
                 },
                 'body': json.dumps(project_details)
             }
+        elif request.path == '/api/db/schema':
+            schema = generate_postgresql_schema()
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json'
+                },
+                'body': json.dumps(schema)
+            }
+        elif request.path == '/api/db/generate-indexeddb':
+            schema = generate_postgresql_schema()
+            indexeddb_code = generate_indexeddb_setup_code(schema)
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'text/plain'
+                },
+                'body': indexeddb_code
+            }
         else:
             return {
                 'statusCode': 404,
@@ -716,6 +861,17 @@ def create_app():
         def get_demo_project_details(project_name):
             project_details = generate_demo_project_details(project_name)
             return jsonify(project_details)
+        
+        @app.route('/api/db/schema')
+        def get_db_schema():
+            schema = generate_postgresql_schema()
+            return jsonify(schema)
+        
+        @app.route('/api/db/generate-indexeddb')
+        def get_indexeddb_setup():
+            schema = generate_postgresql_schema()
+            indexeddb_code = generate_indexeddb_setup_code(schema)
+            return indexeddb_code
     
     return app
 

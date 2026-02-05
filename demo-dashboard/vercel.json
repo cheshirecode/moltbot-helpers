@@ -1,24 +1,17 @@
 {
   "version": 2,
   "name": "openclaw-demo",
+  "public": true,
   "builds": [
     {
       "src": "api/index.py",
       "use": "@vercel/python",
-      "config": { "runtime": "python3.9" }
+      "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/demo",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/",
+      "src": "/(.*)",
       "dest": "api/index.py"
     }
   ]

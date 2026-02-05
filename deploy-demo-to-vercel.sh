@@ -19,7 +19,7 @@ echo "✅ Successfully authenticated with Vercel"
 
 # Deploy to Vercel
 echo "📦 Building and deploying to Vercel..."
-vercel --prod
+vercel --prod --yes
 
 echo ""
 echo "🎉 Deployment completed!"
