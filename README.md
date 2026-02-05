@@ -224,10 +224,14 @@ Separate public-facing demo system showcasing capabilities without exposing inte
 - `wrangler.toml` - Cloudflare Workers configuration
 - `worker-package.json` - Worker dependencies
 - `demo-deployment.md` - Deployment guide for multiple platforms
+- `templates/` - Shared UI templates for consistency
+- `templates/renderer.py` - Template rendering system
+- `templates/dashboard.html` - Shared dashboard template
 - Completely decoupled from main OpenClaw system for security
 - Uses synthetic data for realistic demonstrations
 - Available at http://localhost:5001/demo when running locally
 - Deployable to Vercel, Cloudflare Workers, Render, Railway, and other platforms
+- **Shared template architecture** for consistency across all deployments
 
 ## Architecture
 

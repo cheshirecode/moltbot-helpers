@@ -36,3 +36,4 @@ build-backend = "hatchling.build"
 packages = ["src/fp", "src/seek", "src/seek_pg", "src/pt", "src/pt_pg", "src/lookup", "src/integration", "src/gcal", "src/gmail", "src/markdown_processor", "src/backup", "src/sync", "src/process_manager"]
 
 [tool.hatch.build.force-include]
+"templates/" = "templates/"

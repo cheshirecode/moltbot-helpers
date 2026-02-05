@@ -2,6 +2,14 @@
 
 This guide explains how to deploy the OpenClaw demo system to various platforms while maintaining security and isolation from your main OpenClaw instance.
 
+## Architecture Overview
+
+The OpenClaw demo system uses a **shared template architecture**:
+- Common HTML template in `templates/dashboard.html`
+- Template renderer in `templates/renderer.py`
+- Different configurations for main system vs demo system
+- Same UI code reused across all platforms and deployments
+
 ## Vercel Deployment
 
 ### Prerequisites
@@ -11,7 +19,7 @@ This guide explains how to deploy the OpenClaw demo system to various platforms 
 ### Steps
 1. Create a new project on Vercel
 2. Link your GitHub repository containing the demo code
-3. Set the build command to: `npm install` (if using worker-package.json, rename it to package.json first)
+3. Set the build command to: `pip install flask`
 4. Set the output directory to the root
 5. Configure the build settings to use the Python runtime
 6. Deploy!
@@ -26,6 +34,7 @@ vercel
 - The demo will be available at `https://your-project.vercel.app/demo`
 - No environment variables needed (uses synthetic data)
 - Auto-scaling with Vercel's infrastructure
+- Uses shared template architecture for consistency
 
 ## Cloudflare Workers Deployment
 
@@ -54,6 +63,7 @@ vercel
 - The demo will be available at `https://your-worker.your-subdomain.workers.dev`
 - Workers provide excellent global performance
 - Free tier includes generous request limits
+- Uses shared template architecture adapted for JavaScript
 
 ## Render Deployment
 
@@ -79,6 +89,7 @@ vercel
 - The demo will be available at `https://your-project.onrender.com`
 - Auto-deploys on git pushes
 - Free tier with reasonable limits
+- Uses shared template architecture for consistency
 
 ## Railway Deployment
 
@@ -96,6 +107,7 @@ vercel
 - The demo will be available at a railway.app domain
 - Great for quick deployments
 - Generous free tier
+- Uses shared template architecture for consistency
 
 ## Fly.io Deployment
 
@@ -123,6 +135,7 @@ vercel
 - The demo will be available at `https://your-app.fly.dev`
 - Edge computing across multiple regions
 - Good free tier
+- Uses shared template architecture for consistency
 
 ## GitHub Pages + Serverless Functions (Alternative)
 
@@ -130,6 +143,7 @@ For a hybrid approach:
 1. Host the frontend on GitHub Pages
 2. Use Netlify Functions or Vercel API routes for backend
 3. Provides excellent performance and cost
+4. Uses shared template architecture for consistency
 
 ## Security Best Practices
 
@@ -140,6 +154,7 @@ Regardless of platform:
 3. **Rate limiting**: All platforms provide built-in rate limiting
 4. **No secrets needed**: Demo doesn't require authentication
 5. **Monitor traffic**: Keep an eye on usage patterns
+6. **Template security**: Shared templates sanitize all inputs
 
 ## Custom Domain Setup
 
@@ -153,6 +168,7 @@ Most platforms allow custom domains:
 
 - The demo is lightweight by design
 - Assets are served efficiently
+- Shared template reduces code duplication
 - Synthetic data generation is fast
 - Caching can be implemented if needed
 
@@ -161,14 +177,24 @@ Most platforms allow custom domains:
 - All mentioned platforms offer free tiers
 - Traffic-based pricing kicks in at higher usage
 - For demonstration purposes, free tiers should suffice
+- Shared template architecture reduces maintenance costs
 - Monitor usage to avoid unexpected charges
 
 ## Updating the Demo
 
 After deployment:
-1. Make changes to your code
-2. Push to the connected repository
-3. Platform will auto-deploy (if configured)
-4. Or manually trigger a deployment
+1. Make changes to the shared template in `templates/dashboard.html`
+2. Changes propagate to all platforms automatically
+3. Push to the connected repository
+4. Platform will auto-deploy (if configured)
+5. Or manually trigger a deployment
+
+## Benefits of Shared Template Architecture
+
+- **Consistency**: Same UI across all platforms and deployments
+- **Maintainability**: Single source of truth for UI code
+- **Flexibility**: Easy to customize for different contexts
+- **Efficiency**: Reduced code duplication and maintenance overhead
+- **Scalability**: Easy to add new deployment platforms
 
 Choose the platform that best fits your needs in terms of ease of deployment, performance, and cost!

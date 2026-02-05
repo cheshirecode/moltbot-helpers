@@ -5,11 +5,17 @@ Task Management Dashboard API
 Flask API to serve task data from PostgreSQL database to the UI
 """
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 import psycopg2
 import os
 from datetime import datetime, timedelta
 import json
+import sys
+import os.path
+
+# Add the project root to the path so we can import the renderer
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from templates.renderer import render_dashboard_for_main_system
 
 app = Flask(__name__, static_folder='.')
 
@@ -67,7 +73,8 @@ def get_projects_data():
 @app.route('/')
 def index():
     """Serve the main dashboard page."""
-    return send_from_directory('.', 'dashboard.html')
+    html_content = render_dashboard_for_main_system()
+    return html_content
 
 
 @app.route('/api/projects')

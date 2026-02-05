@@ -1,138 +1,9 @@
-// OpenClaw Demo Cloudflare Worker
-//
-// A serverless implementation of the OpenClaw demo dashboard
-// Generates synthetic data for demonstration purposes
-// Uses shared HTML template approach
-
-import { Hono } from 'https://deno.land/x/hono/mod.ts';
-
-const app = new Hono();
-
-// Generate synthetic project data for demo
-function generateDemoProjects() {
-  const projectNames = [
-    'openclaw-core', 'moltbot-integration', 'ai-automation', 'data-pipeline',
-    'workflow-engine', 'knowledge-base', 'task-orchestration', 'sync-service'
-  ];
-
-  const demoProjects = [];
-  for (const name of projectNames) {
-    const totalTasks = Math.floor(Math.random() * 135) + 15;
-    const completedTasks = Math.floor(Math.random() * (totalTasks + 1));
-    const inProgressTasks = Math.floor(Math.random() * (totalTasks - completedTasks + 1));
-    const todoTasks = totalTasks - completedTasks - inProgressTasks;
-
-    demoProjects.push({
-      project: name,
-      total_tasks: totalTasks,
-      completed_tasks: completedTasks,
-      in_progress_tasks: inProgressTasks,
-      todo_tasks: todoTasks
-    });
-  }
-
-  return demoProjects.sort((a, b) => b.total_tasks - a.total_tasks);
-}
-
-function generateDemoProjectDetails(projectName) {
-  // Possible values for demo data
-  const statuses = ['completed', 'in-progress', 'todo', 'blocked', 'review'];
-  const priorities = ['critical', 'high', 'medium', 'low'];
-  const categories = ['development', 'testing', 'documentation', 'research', 'maintenance', 'design'];
-
-  // Generate random counts
-  const totalTasks = Math.floor(Math.random() * 40) + 10;
-
-  // Generate status distribution
-  const statusCounts = {};
-  let remaining = totalTasks;
-  for (let i = 0; i < statuses.length - 1; i++) {
-    if (remaining <= 0) break;
-    const count = Math.floor(Math.random() * Math.min(remaining, Math.floor(totalTasks * 0.4))) + 1;
-    statusCounts[statuses[i]] = count;
-    remaining -= count;
-  }
-  // Assign remaining to last status
-  statusCounts[statuses[statuses.length - 1]] = remaining;
-
-  // Generate priority distribution
-  const priorityCounts = {};
-  remaining = totalTasks;
-  for (let i = 0; i < priorities.length - 1; i++) {
-    if (remaining <= 0) break;
-    const count = Math.floor(Math.random() * Math.min(remaining, Math.floor(totalTasks * 0.3))) + 1;
-    priorityCounts[priorities[i]] = count;
-    remaining -= count;
-  }
-  priorityCounts[priorities[priorities.length - 1]] = remaining;
-
-  // Generate category distribution
-  const categoryCounts = {};
-  remaining = totalTasks;
-  for (let i = 0; i < categories.length - 1; i++) {
-    if (remaining <= 0) break;
-    const count = Math.floor(Math.random() * Math.min(remaining, Math.floor(totalTasks * 0.3))) + 1;
-    categoryCounts[categories[i]] = count;
-    remaining -= count;
-  }
-  categoryCounts[categories[categories.length - 1]] = remaining;
-
-  // Generate recent tasks
-  const recentTasks = [];
-  for (let i = 0; i < Math.min(10, totalTasks); i++) {
-    const daysAgoCreated = Math.floor(Math.random() * 31);
-    const daysAgoUpdated = Math.floor(Math.random() * 15);
-    
-    recentTasks.push({
-      id: Math.floor(Math.random() * 9000) + 1000,
-      title: `Demo task ${i+1} for ${projectName}`,
-      status: statuses[Math.floor(Math.random() * statuses.length)],
-      priority: priorities[Math.floor(Math.random() * priorities.length)],
-      category: categories[Math.floor(Math.random() * categories.length)],
-      created_date: new Date(Date.now() - daysAgoCreated * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      updated_date: new Date(Date.now() - daysAgoUpdated * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      tags: ['demo', 'showcase', 'example']
-    });
-  }
-
-  return {
-    project: projectName,
-    statusCounts: statusCounts,
-    priorityCounts: priorityCounts,
-    categoryCounts: categoryCounts,
-    recentTasks: recentTasks,
-    totalTasks: totalTasks
-  };
-}
-
-// Shared HTML template
-function getDashboardHtml(params = {}) {
-  // Default parameters
-  const defaults = {
-    title: 'OpenClaw Demo Dashboard',
-    header_title: 'OpenClaw Demo Dashboard',
-    subtitle: 'Showcasing task management capabilities',
-    show_disclaimer: true,
-    disclaimer_text: 'This is a demonstration system using synthetic data. The actual OpenClaw system operates independently with real data.',
-    intro_title: 'Welcome to the OpenClaw Demo',
-    intro_text: 'This dashboard showcases the task management capabilities of the OpenClaw system. All data shown here is synthetic and generated for demonstration purposes only.',
-    project_label: 'demo project',
-    show_refresh_button: false,
-    api_base_url: '.',
-    projects_endpoint: 'api/demo/projects',
-    project_detail_endpoint: 'api/demo/project'
-  };
-
-  // Merge provided parameters with defaults
-  const p = { ...defaults, ...params };
-
-  return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${p.title}</title>
+    <title>{{ title }}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -339,27 +210,30 @@ function getDashboardHtml(params = {}) {
 <body>
     <div class="container">
         <header>
-            <h1>${p.header_title}</h1>
-            <div class="subtitle">${p.subtitle}</div>
+            <h1>{{ header_title }}</h1>
+            <div class="subtitle">{{ subtitle }}</div>
         </header>
         
-        ${p.show_disclaimer ? `
+        {% if show_disclaimer %}
         <div class="disclaimer">
-            <strong>Note:</strong> ${p.disclaimer_text}
-        </div>` : ''}
+            <strong>Note:</strong> {{ disclaimer_text }}
+        </div>
+        {% endif %}
         
         <div class="intro">
-            <h2>${p.intro_title}</h2>
-            <p>${p.intro_text}</p>
+            <h2>{{ intro_title }}</h2>
+            <p>{{ intro_text }}</p>
         </div>
         
         <div class="controls">
             <select id="projectSelect">
-                <option value="">Select a ${p.project_label}...</option>
+                <option value="">Select a {{ project_label }}...</option>
             </select>
             <button onclick="loadProjectData()">Load Project Data</button>
             <button onclick="loadAllProjects()">Load All Projects</button>
-            ${p.show_refresh_button ? '<button onclick="refreshData()">Refresh Data</button>' : ''}
+            {% if show_refresh_button %}
+            <button onclick="refreshData()">Refresh Data</button>
+            {% endif %}
         </div>
         
         <div id="loadingIndicator" class="loading" style="display: none;">
@@ -418,8 +292,8 @@ function getDashboardHtml(params = {}) {
         let priorityChart = null;
         let categoryChart = null;
         
-        // Base URL for API calls
-        let API_BASE_URL = '${p.api_base_url}';
+        // Base URL for API calls - will be set differently for each implementation
+        let API_BASE_URL = '{{ api_base_url }}';
         
         // Initialize the dashboard
         document.addEventListener('DOMContentLoaded', function() {
@@ -438,9 +312,9 @@ function getDashboardHtml(params = {}) {
         async function loadAllProjects() {
             try {
                 // Fetch projects data
-                const response = await fetch(API_BASE_URL + '/${p.projects_endpoint}');
+                const response = await fetch(API_BASE_URL + '/{{ projects_endpoint }}');
                 if (!response.ok) {
-                    throw new Error(\`API error: \${response.status} \${response.statusText}\`);
+                    throw new Error(`API error: ${response.status} ${response.statusText}`);
                 }
                 const projects = await response.json();
                 
@@ -460,7 +334,7 @@ function getDashboardHtml(params = {}) {
         
         function populateProjectSelector(projects) {
             const select = document.getElementById('projectSelect');
-            select.innerHTML = '<option value="">Select a ${p.project_label}...</option>';
+            select.innerHTML = '<option value="">Select a {{ project_label }}...</option>';
             
             projects.forEach(project => {
                 const option = document.createElement('option');
@@ -480,9 +354,9 @@ function getDashboardHtml(params = {}) {
             
             try {
                 // Fetch project details
-                const response = await fetch(API_BASE_URL + '/${p.project_detail_endpoint}/' + encodeURIComponent(selectedProject));
+                const response = await fetch(API_BASE_URL + '/{{ project_detail_endpoint }}/' + encodeURIComponent(selectedProject));
                 if (!response.ok) {
-                    throw new Error(\`API error: \${response.status} \${response.statusText}\`);
+                    throw new Error(`API error: ${response.status} ${response.statusText}`);
                 }
                 const projectData = await response.json();
                 
@@ -538,20 +412,20 @@ function getDashboardHtml(params = {}) {
                 
                 const projectCard = document.createElement('div');
                 projectCard.className = 'project-card';
-                projectCard.innerHTML = \`
+                projectCard.innerHTML = `
                     <div class="project-header">
-                        <div class="project-name">\${project.project}</div>
-                        <div class="task-count">\${project.total_tasks}</div>
+                        <div class="project-name">${project.project}</div>
+                        <div class="task-count">${project.total_tasks}</div>
                     </div>
-                    <div>Total Tasks: \${project.total_tasks}</div>
-                    <div>Completed: \${project.completed_tasks}</div>
-                    <div>In Progress: \${project.in_progress_tasks}</div>
-                    <div>To Do: \${project.todo_tasks}</div>
+                    <div>Total Tasks: ${project.total_tasks}</div>
+                    <div>Completed: ${project.completed_tasks}</div>
+                    <div>In Progress: ${project.in_progress_tasks}</div>
+                    <div>To Do: ${project.todo_tasks}</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: \${progressPercent}%"></div>
+                        <div class="progress-fill" style="width: ${progressPercent}%"></div>
                     </div>
-                    <div>\${progressPercent}% Complete</div>
-                \`;
+                    <div>${progressPercent}% Complete</div>
+                `;
                 
                 container.appendChild(projectCard);
             });
@@ -564,10 +438,10 @@ function getDashboardHtml(params = {}) {
             stats.forEach(stat => {
                 const statCard = document.createElement('div');
                 statCard.className = 'stat-card';
-                statCard.innerHTML = \`
-                    <div class="stat-value">\${stat.value}</div>
-                    <div class="stat-label">\${stat.label}</div>
-                \`;
+                statCard.innerHTML = `
+                    <div class="stat-value">${stat.value}</div>
+                    <div class="stat-label">${stat.label}</div>
+                `;
                 container.appendChild(statCard);
             });
         }
@@ -658,15 +532,15 @@ function getDashboardHtml(params = {}) {
                 taskEl.style.padding = '10px 0';
                 taskEl.style.marginBottom = '10px';
                 
-                taskEl.innerHTML = \`
-                    <div style="font-weight: bold;">\${task.title}</div>
+                taskEl.innerHTML = `
+                    <div style="font-weight: bold;">${task.title}</div>
                     <div style="font-size: 0.9em; color: #666;">
-                        ID: \${task.id} | Status: \${task.status} | Priority: \${task.priority} | Category: \${task.category}
+                        ID: ${task.id} | Status: ${task.status} | Priority: ${task.priority} | Category: ${task.category}
                     </div>
                     <div style="font-size: 0.8em; color: #888;">
-                        Created: \${task.created_date} | Updated: \${task.updated_date}
+                        Created: ${task.created_date} | Updated: ${task.updated_date}
                     </div>
-                \`;
+                `;
                 
                 list.appendChild(taskEl);
             });
@@ -685,66 +559,3 @@ function getDashboardHtml(params = {}) {
     </script>
 </body>
 </html>
-`;
-}
-
-// Define routes
-app.get('/', (c) => {
-  const html = getDashboardHtml({
-    title: 'OpenClaw Demo Dashboard',
-    header_title: 'OpenClaw Demo Dashboard',
-    subtitle: 'Showcasing task management capabilities',
-    show_disclaimer: true,
-    disclaimer_text: 'This is a demonstration system using synthetic data. The actual OpenClaw system operates independently with real data.',
-    intro_title: 'Welcome to the OpenClaw Demo',
-    intro_text: 'This dashboard showcases the task management capabilities of the OpenClaw system. All data shown here is synthetic and generated for demonstration purposes only.',
-    project_label: 'demo project',
-    show_refresh_button: false,
-    api_base_url: '.',
-    projects_endpoint: 'api/demo/projects',
-    project_detail_endpoint: 'api/demo/project'
-  });
-  return c.html(html);
-});
-
-app.get('/demo', (c) => {
-  const html = getDashboardHtml({
-    title: 'OpenClaw Demo Dashboard',
-    header_title: 'OpenClaw Demo Dashboard',
-    subtitle: 'Showcasing task management capabilities',
-    show_disclaimer: true,
-    disclaimer_text: 'This is a demonstration system using synthetic data. The actual OpenClaw system operates independently with real data.',
-    intro_title: 'Welcome to the OpenClaw Demo',
-    intro_text: 'This dashboard showcases the task management capabilities of the OpenClaw system. All data shown here is synthetic and generated for demonstration purposes only.',
-    project_label: 'demo project',
-    show_refresh_button: false,
-    api_base_url: '.',
-    projects_endpoint: 'api/demo/projects',
-    project_detail_endpoint: 'api/demo/project'
-  });
-  return c.html(html);
-});
-
-app.get('/api/demo/projects', (c) => {
-  try {
-    const projects = generateDemoProjects();
-    return c.json(projects);
-  } catch (error) {
-    return c.json({ error: error.toString() }, 500);
-  }
-});
-
-app.get('/api/demo/project/:projectName', (c) => {
-  try {
-    const projectName = c.req.param('projectName');
-    const projectDetails = generateDemoProjectDetails(projectName);
-    return c.json(projectDetails);
-  } catch (error) {
-    return c.json({ error: error.toString() }, 500);
-  }
-});
-
-// Export the handler for Cloudflare Workers
-export default {
-  fetch: app.fetch,
-};
