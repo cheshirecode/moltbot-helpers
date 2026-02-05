@@ -211,6 +211,17 @@ New web-based dashboard for visualizing tasks from PostgreSQL database:
 - Interactive charts and project visualization
 - Real-time data from PostgreSQL project tracker
 
+## Public Demo System
+
+Separate public-facing demo system showcasing capabilities without exposing internal data:
+
+- `demo_server.py` - Isolated demo server with synthetic data
+- `demo-plan.md` - Implementation plan for public demo
+- `demo` - Command to launch demo server (port 5001)
+- Completely decoupled from main OpenClaw system for security
+- Uses synthetic data for realistic demonstrations
+- Available at http://localhost:5001/demo when running
+
 ## Architecture
 
 The tools are implemented as Python applications with CLI interfaces. Wrapper scripts provide clean command-line access without file extensions.
