@@ -199,6 +199,18 @@ As of February 2026, all tools have been successfully migrated from SQLite to Po
 - ✅ All tools operational with PostgreSQL backend
 - ✅ Legacy tools deprecated but still available for reference
 
+## Task Management Dashboard
+
+New web-based dashboard for visualizing tasks from PostgreSQL database:
+
+- `ui/dashboard.html` - Main dashboard UI
+- `ui/api.py` - Flask API backend
+- `ui/start_server.sh` - Server startup script
+- `ui/run_dashboard.py` - Auto-launch script with browser opening
+- `launch_dashboard.sh` - Main project launch script
+- Interactive charts and project visualization
+- Real-time data from PostgreSQL project tracker
+
 ## Architecture
 
 The tools are implemented as Python applications with CLI interfaces. Wrapper scripts provide clean command-line access without file extensions.
