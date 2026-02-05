@@ -25,14 +25,16 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy essential project files and directories
-COPY pyproject.toml.minimal ./pyproject.toml
+COPY pyproject.toml ./
 COPY src/ ./src/
 COPY backup service-manager sync integrate lookup ./
 
 # Install Python dependencies (without heavy ML packages for faster build)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir numpy thefuzz && \
-    pip install --no-cache-dir psutil watchdog
+    pip install --no-cache-dir psutil watchdog && \
+    pip install --no-cache-dir psycopg2-binary && \
+    pip install --no-cache-dir google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
 
 # Install the moltbot-helpers package to make CLI tools available (without ML dependencies for faster build)
 RUN pip install --no-cache-dir -e .
