@@ -218,6 +218,7 @@ Separate public-facing demo system showcasing capabilities without exposing inte
 - `demo-dashboard/` - Dedicated demo system for Vercel deployment
 - `ui/` - Main dashboard for internal use with real data
 - `demo_plan.md` - Implementation plan for public demo
+- `demo-ideas.md` - Additional features and innovations
 - `demo` - Command to launch main dashboard server (port 5000)
 - `launch_dashboard.sh` - Launch script for main dashboard
 - `deploy-demo-to-vercel.sh` - Deployment script for Vercel
@@ -225,11 +226,15 @@ Separate public-facing demo system showcasing capabilities without exposing inte
 - `templates/` - Shared UI templates for consistency
 - `templates/renderer.py` - Template rendering system
 - `templates/dashboard.html` - Shared dashboard template
+- **LIVE AT**: https://openclaw-demo.vercel.app
 - Completely decoupled from main OpenClaw system for security
 - Demo uses synthetic data, main dashboard uses real data
 - Main dashboard available locally at http://localhost:5000
 - Demo deployed to Vercel for public access
 - **Enhanced security** through complete environment separation
+- **Innovative features**: PostgreSQL-to-IndexedDB mirror system
+- **Auto-generated schemas** from PostgreSQL introspection
+- **Offline-first architecture** with local IndexedDB storage
 
 ## Architecture
 
