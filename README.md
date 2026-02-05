@@ -1,6 +1,25 @@
 # moltbot-helpers
 
-Production-ready CLI tools for Moltbot/OpenClaw systems: `fp` (family planner), `seek` (local semantic search), `pt` (project tracker), `gc` (Google Calendar), `integrate` (unified interface), `backup` (backup utility), `sync` (synchronization), and `service-manager` (process management).
+Production-ready PostgreSQL-powered CLI tools for Moltbot/OpenClaw systems: `pt_pg` (project tracker), `seek_pg` (semantic search), `fp_pg` (family planner), `md2pg` (markdown processor), `gc` (Google Calendar), `integrate` (unified interface), `backup` (backup utility), `sync` (synchronization), and `service-manager` (process management).
+
+## PostgreSQL-Powered Architecture
+
+This suite now uses PostgreSQL as the primary data store for enhanced performance, reliability, and advanced features.
+
+### PostgreSQL Tools (Recommended)
+
+- `pt_pg` - PostgreSQL Project Tracker
+- `seek_pg` - PostgreSQL Semantic Search Engine  
+- `fp_pg` - PostgreSQL Family Planner
+- `md2pg` - Markdown to PostgreSQL Processor
+
+### Legacy Tools (Deprecated)
+
+- `pt` - SQLite Project Tracker (deprecated)
+- `seek` - SQLite Semantic Search Engine (deprecated)
+- `fp` - SQLite Family Planner (deprecated)
+
+> **Important**: New installations should use the PostgreSQL versions. Legacy tools will be removed in future releases.
 
 ## Production Deployment
 
@@ -24,56 +43,76 @@ docker build -f Dockerfile.quick -t moltbot-helpers:latest .
 docker run --rm \
   -v /path/to/production-data:/data/_openclaw \
   -v /path/to/workspace:/workspace \
-  moltbot-helpers:latest pt --project openclaw list
+  moltbot-helpers:latest pt_pg --project openclaw list
 
 # Using aliases for convenience (add to .shell_common or similar):
-alias pt='docker run --rm -v /path/to/production-data:/data/_openclaw -v /path/to/workspace:/workspace moltbot-helpers:latest pt'
-alias fp='docker run --rm -v /path/to/production-data:/data/_openclaw -v /path/to/workspace:/workspace moltbot-helpers:latest fp'
-alias seek='docker run --rm -v /path/to/production-data:/data/_openclaw -v /path/to/workspace:/workspace moltbot-helpers:latest seek'
+alias pt_pg='docker run --rm -v /path/to/production-data:/data/_openclaw -v /path/to/workspace:/workspace moltbot-helpers:latest pt_pg'
+alias fp_pg='docker run --rm -v /path/to/production-data:/data/_openclaw -v /path/to/workspace:/workspace moltbot-helpers:latest fp_pg'
+alias seek_pg='docker run --rm -v /path/to/production-data:/data/_openclaw -v /path/to/workspace:/workspace moltbot-helpers:latest seek_pg'
+alias md2pg='docker run --rm -v /path/to/production-data:/data/_openclaw -v /path/to/workspace:/workspace moltbot-helpers:latest md2pg'
 ```
 
-## Core Tools
+## Core PostgreSQL Tools
 
-### pt — Project Tracker
+### pt_pg — PostgreSQL Project Tracker
 
-Track and manage projects, tasks, and roadmap items in a local SQLite database.
+Track and manage projects, tasks, and roadmap items in a PostgreSQL database.
 
 ```bash
-pt list                    # List all tasks
-pt --project openclaw list # List tasks for specific project
-pt add "New task" --project openclaw --priority high --category dev
-pt update 123 --status completed  # Update task status
-pt search "query"          # Search tasks
+pt_pg list                    # List all tasks
+pt_pg --project openclaw list # List tasks for specific project
+pt_pg add "New task" --project openclaw --priority high --category dev
+pt_pg update 123 --status completed  # Update task status
+pt_pg search "query"          # Search tasks
 ```
 
 Environment variables:
-- `PROJECT_TRACKER_DB_PATH`: Path to the project tracker database (default: `/data/_openclaw/project-tracker.db`)
+- `PT_DB_HOST`: PostgreSQL host (default: localhost)
+- `PT_DB_PORT`: PostgreSQL port (default: 5433)
+- `PT_DB_NAME`: Database name (default: financial_analysis)
+- `PT_DB_USER`: Database user (default: finance_user)
+- `PT_DB_PASSWORD`: Database password (default: secure_finance_password)
 
-### seek — Local Semantic Search
+### seek_pg — PostgreSQL Semantic Search
 
-Index local files and SQLite databases, search with hybrid semantic + full-text search.
+Index local files and search with hybrid semantic + full-text search using PostgreSQL.
 
 ```bash
-seek search "query"        # Hybrid search
-seek status               # Show index info
-seek reindex              # Force full reindex
+seek_pg search "query"        # Hybrid search
+seek_pg status               # Show index info
+seek_pg reindex              # Force full reindex
 ```
 
 Environment variables:
-- `SEEK_DB_PATH`: Path to the seek database (default: `/data/_openclaw/seek.db`)
+- Same as pt_pg (uses the same PostgreSQL connection)
 
-### fp — Family Planner
+### fp_pg — PostgreSQL Family Planner
 
-Query and update the family SQLite database.
+Query and update the family PostgreSQL database.
 
 ```bash
-fp tasks          # Show open tasks
-fp balances       # Financial balances
-fp search <term>  # Search across all tables
+fp_pg tasks          # Show open tasks
+fp_pg balances       # Financial balances
+fp_pg search <term>  # Search across all tables
 ```
 
 Environment variables:
-- `FP_DB`: Path to the family planning database (default: `/data/_openclaw/family-planning.db`)
+- Same as pt_pg (uses the same PostgreSQL connection)
+
+### md2pg — Markdown to PostgreSQL Processor
+
+Process markdown files and convert them to PostgreSQL database entries.
+
+```bash
+# Process a single file
+md2pg import-file /path/to/file.md --project myproject
+
+# Process a directory
+md2pg import-dir /path/to/dir --project myproject
+
+# Process from stdin
+echo '# My Task' | md2pg process --project myproject --title "From stdin"
+```
 
 ### integrate — Unified Interface
 
@@ -140,19 +179,31 @@ lookup <topic>                # Look up specific topic
 - Data sources are externalized via volume mounts
 - No credentials are stored in the container image
 - Use environment-specific credential management for production
+- PostgreSQL connections use secure authentication
 
 ## Production Requirements
 
 - Docker 20.10 or later
+- PostgreSQL 13 or later (for PostgreSQL tools)
 - Sufficient disk space for database files and indexed content
 - Appropriate file permissions on mounted volumes
 - Network access for external APIs (if using Google Calendar, etc.)
+
+## PostgreSQL Migration Complete
+
+As of February 2026, all tools have been successfully migrated from SQLite to PostgreSQL:
+
+- ✅ All data migrated to PostgreSQL
+- ✅ All functionality preserved
+- ✅ Enhanced capabilities with PostgreSQL features
+- ✅ All tools operational with PostgreSQL backend
+- ✅ Legacy tools deprecated but still available for reference
 
 ## Architecture
 
 The tools are implemented as Python applications with CLI interfaces. Wrapper scripts provide clean command-line access without file extensions.
 
-- `backup`, `integrate`, `lookup`, `pt`, `service-manager`, `sync` - Python wrapper scripts
+- `backup`, `integrate`, `lookup`, `pt_pg`, `fp_pg`, `seek_pg`, `md2pg`, `service-manager`, `sync` - Python wrapper scripts
 - Core functionality in the `src/` directory
 - Configuration via environment variables
-- SQLite databases for data persistence
+- PostgreSQL databases for data persistence (with SQLite versions being phased out)
