@@ -3,6 +3,12 @@
 ## Objective
 Create a separate public-facing system to showcase OpenClaw/Moltbot capabilities while being completely decoupled from the main OpenClaw setup for security reasons.
 
+## Architecture
+- Main system: `ui/` directory with real PostgreSQL data (internal use)
+- Demo system: `demo-dashboard/` directory with synthetic data (public deployment)
+- Shared templates: `templates/` directory for UI consistency
+- Complete environment separation for security
+
 ## Security Requirements
 - Complete isolation from main OpenClaw system
 - No access to sensitive data, credentials, or internal systems

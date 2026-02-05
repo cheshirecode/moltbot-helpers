@@ -4,11 +4,12 @@ This guide explains how to deploy the OpenClaw demo system to various platforms 
 
 ## Architecture Overview
 
-The OpenClaw demo system uses a **shared template architecture**:
-- Common HTML template in `templates/dashboard.html`
-- Template renderer in `templates/renderer.py`
-- Different configurations for main system vs demo system
-- Same UI code reused across all platforms and deployments
+The OpenClaw demo system uses a **fully separated architecture**:
+- Main system located in `ui/` directory with real PostgreSQL data
+- Demo system located in `demo-dashboard/` directory with synthetic data
+- Complete isolation between systems for security
+- Shared UI template in `templates/dashboard.html` for consistency
+- Template renderer in `templates/renderer.py` for different configurations
 
 ## Vercel Deployment
 
