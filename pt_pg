@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""
+Project Tracker utility for managing tasks and roadmap items (PostgreSQL version).
+Connects to the PostgreSQL database running in the k8s cluster.
+"""
+
+import sys
+import os
+
+# Set environment variables to connect to the PostgreSQL in k8s cluster
+os.environ["PT_DB_HOST"] = "postgres-db.openclaw-services.svc.cluster.local"
+os.environ["PT_DB_PORT"] = "5432"
+os.environ["PT_DB_NAME"] = "financial_analysis"
+os.environ["PT_DB_USER"] = "finance_user"
+os.environ["PT_DB_PASSWORD"] = "secure_finance_password"
+
+# Add the src directory to the path so we can import the pt_pg utility
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from pt_pg.cli import main
+
+if __name__ == "__main__":
+    main()
