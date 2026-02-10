@@ -7,6 +7,7 @@ Flask API to serve task data from PostgreSQL database to the UI
 
 from flask import Flask, jsonify, request, send_from_directory
 import psycopg2
+import psycopg2.extras
 import os
 from datetime import datetime, timedelta
 import json
@@ -68,6 +69,22 @@ def get_projects_data():
 def index():
     """Serve the main dashboard page."""
     return send_from_directory('.', 'dashboard.html')
+
+
+@app.route('/shared-dashboard.js')
+def serve_shared_dashboard_js():
+    """Serve the shared dashboard JavaScript file."""
+    import os
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    js_file_path = os.path.join(script_dir, 'shared-dashboard.js')
+    
+    try:
+        with open(js_file_path, 'r') as f:
+            js_content = f.read()
+        return js_content, 200, {'Content-Type': 'application/javascript'}
+    except FileNotFoundError:
+        return "Shared dashboard file not found", 404
 
 
 @app.route('/api/projects')
@@ -171,6 +188,147 @@ def get_project_details(project_name):
             "totalTasks": total_tasks
         })
     
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/project/<project_name>/task/<task_id>', methods=['PUT'])
+def update_task_status(project_name, task_id):
+    """Update task status in the database."""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        new_status = data.get('status')
+        new_title = data.get('title')
+        new_description = data.get('description')
+        new_priority = data.get('priority')
+        updated_date = data.get('updated_date', datetime.now().strftime('%Y-%m-%d'))
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        update_fields = []
+        update_values = []
+
+        if new_status:
+            update_fields.append("status = %s")
+            update_values.append(new_status)
+        if new_title:
+            update_fields.append("title = %s")
+            update_values.append(new_title)
+        if new_description:
+            update_fields.append("description = %s")
+            update_values.append(new_description)
+        if new_priority:
+            update_fields.append("priority = %s")
+            update_values.append(new_priority)
+        
+        update_fields.append("updated_date = %s")
+        update_values.append(updated_date)
+
+        if not update_fields:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        query = f"UPDATE project_tracker SET {', '.join(update_fields)} WHERE project = %s AND id = %s RETURNING id"
+        cursor.execute(query, update_values + [project_name, task_id])
+        
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({"error": "Task not found"}), 404
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "message": f"Task {task_id} updated successfully",
+            "task_id": task_id
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/project/<project_name>/task/<task_id>', methods=['GET'])
+def get_task_details(project_name, task_id):
+    """Get details for a specific task."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cursor.execute("""
+            SELECT id, project, title, description, status, priority, category, created_date, updated_date, tags
+            FROM project_tracker
+            WHERE project = %s AND id = %s
+        """, (project_name, task_id))
+        
+        task = cursor.fetchone()
+        conn.close()
+
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+        
+        # Convert datetime objects to strings
+        if isinstance(task.get('created_date'), datetime):
+            task['created_date'] = task['created_date'].isoformat()
+        if isinstance(task.get('updated_date'), datetime):
+            task['updated_date'] = task['updated_date'].isoformat()
+        
+        # Convert tags from JSON string to object if needed
+        if isinstance(task.get('tags'), str):
+            try:
+                task['tags'] = json.loads(task['tags'])
+            except:
+                pass
+
+        return jsonify(task)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/project/<project_name>/task', methods=['POST'])
+def create_task(project_name):
+    """Create a new task in the database."""
+    try:
+        data = request.get_json()
+        
+        required_fields = ['title', 'description', 'status', 'priority', 'category']
+        if not all(field in data for field in required_fields):
+            return jsonify({"error": f"Missing required fields: {', '.join(required_fields)}"}), 400
+        
+        title = data['title']
+        description = data['description']
+        status = data['status']
+        priority = data['priority']
+        category = data['category']
+        created_date = data.get('created_date', datetime.now().strftime('%Y-%m-%d'))
+        updated_date = data.get('updated_date', datetime.now().strftime('%Y-%m-%d'))
+        tags = json.dumps(data.get('tags', []))
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO project_tracker (project, title, description, status, priority, category, created_date, updated_date, tags)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (project_name, title, description, status, priority, category, created_date, updated_date, tags))
+        
+        new_task_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Task created successfully",
+            "task_id": new_task_id,
+            "project": project_name
+        }), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

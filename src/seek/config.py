@@ -7,9 +7,8 @@ DEFAULT_CONFIG_PATH = "~/.config/seek/config.json"
 
 DEFAULT_CONFIG = {
     "paths": [],
-    "sqliteSources": [],
+    "postgresTables": [],  # Replaced sqliteSources
     "model": "all-MiniLM-L6-v2",
-    "dbPath": os.path.expanduser(os.environ.get("SEEK_DB_PATH", "~/projects/_openclaw/seek.db")),
     "chunkSize": 256,
     "chunkOverlap": 32,
 }

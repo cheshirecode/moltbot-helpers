@@ -1,56 +1,86 @@
-"""Seek SQLite storage — chunks + FTS5 + vector search."""
+"""Seek PostgreSQL storage — chunks + full-text search + vector search."""
 
 import os
-import sqlite3
 import time
 
 import numpy as np
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 from .config import expand
 
+# Database connection settings
+DB_HOST = os.environ.get("SEEK_DB_HOST", os.environ.get("PT_DB_HOST", "localhost"))
+DB_PORT = os.environ.get("SEEK_DB_PORT", os.environ.get("PT_DB_PORT", "5433"))
+DB_NAME = os.environ.get("SEEK_DB_NAME", os.environ.get("PT_DB_NAME", "financial_analysis"))
+DB_USER = os.environ.get("SEEK_DB_USER", os.environ.get("PT_DB_USER", "finance_user"))
+DB_PASS = os.environ.get("SEEK_DB_PASS", os.environ.get("PT_DB_PASS", "secure_finance_password"))
 
-def init_db(db_path):
-    db_path = expand(db_path)
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("""CREATE TABLE IF NOT EXISTS chunks (
-        id INTEGER PRIMARY KEY,
-        source_path TEXT NOT NULL,
-        label TEXT,
-        chunk_text TEXT NOT NULL,
-        line_start INTEGER,
-        line_end INTEGER,
-        embedding BLOB,
-        indexed_at REAL
-    )""")
-    conn.execute("""CREATE TABLE IF NOT EXISTS file_meta (
-        source_path TEXT PRIMARY KEY,
-        mtime REAL,
-        indexed_at REAL
-    )""")
-    # FTS5 virtual table
-    conn.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-        chunk_text, content=chunks, content_rowid=id
-    )""")
-    # Triggers to keep FTS in sync
-    conn.execute("""CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
-        INSERT INTO chunks_fts(rowid, chunk_text) VALUES (new.id, new.chunk_text);
-    END""")
-    conn.execute("""CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
-        INSERT INTO chunks_fts(chunks_fts, rowid, chunk_text) VALUES('delete', old.id, old.chunk_text);
-    END""")
-    conn.execute("""CREATE TRIGGER IF NOT EXISTS chunks_au AFTER UPDATE ON chunks BEGIN
-        INSERT INTO chunks_fts(chunks_fts, rowid, chunk_text) VALUES('delete', old.id, old.chunk_text);
-        INSERT INTO chunks_fts(rowid, chunk_text) VALUES (new.id, new.chunk_text);
-    END""")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source_path)")
+
+def init_db(db_path=None):
+    """Initialize PostgreSQL database tables for seek."""
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASS
+    )
+    cur = conn.cursor()
+    
+    # Chunks table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS seek_chunks (
+            id SERIAL PRIMARY KEY,
+            source_path TEXT NOT NULL,
+            label TEXT,
+            chunk_text TEXT NOT NULL,
+            line_start INTEGER,
+            line_end INTEGER,
+            embedding BYTEA,
+            indexed_at DOUBLE PRECISION
+        )
+    """)
+    
+    # File meta table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS seek_file_meta (
+            source_path TEXT PRIMARY KEY,
+            mtime DOUBLE PRECISION,
+            indexed_at DOUBLE PRECISION
+        )
+    """)
+    
+    # Create indexes
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_seek_chunks_source ON seek_chunks(source_path)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_seek_chunks_label ON seek_chunks(label)")
+    
+    # Create GIN index for full-text search
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_seek_chunks_fts 
+        ON seek_chunks USING gin(to_tsvector('english', chunk_text))
+    """)
+    
     conn.commit()
     return conn
 
 
+def get_db():
+    """Get a database connection."""
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASS
+    )
+    return conn
+
+
 def get_file_mtime(conn, source_path):
-    row = conn.execute("SELECT mtime FROM file_meta WHERE source_path=?", (source_path,)).fetchone()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT mtime FROM seek_file_meta WHERE source_path=%s", (source_path,))
+    row = cur.fetchone()
     return row["mtime"] if row else None
 
 
@@ -59,21 +89,31 @@ def upsert_chunks(conn, source_path, label, chunks, embeddings):
     chunks: list of (chunk_text, line_start, line_end)
     embeddings: numpy array or list of numpy arrays
     """
+    cur = conn.cursor()
     now = time.time()
-    conn.execute("DELETE FROM chunks WHERE source_path=?", (source_path,))
+    
+    # Delete existing chunks for this source
+    cur.execute("DELETE FROM seek_chunks WHERE source_path=%s", (source_path,))
+    
+    # Insert new chunks
     for i, (text, ls, le) in enumerate(chunks):
         emb_blob = embeddings[i].astype(np.float32).tobytes() if embeddings is not None else None
-        conn.execute(
-            "INSERT INTO chunks (source_path, label, chunk_text, line_start, line_end, embedding, indexed_at) VALUES (?,?,?,?,?,?,?)",
+        cur.execute(
+            """INSERT INTO seek_chunks (source_path, label, chunk_text, line_start, line_end, embedding, indexed_at) 
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
             (source_path, label, text, ls, le, emb_blob, now),
         )
+    
     # Update file meta
     mtime = now
-    if os.path.exists(expand(source_path)):
-        mtime = os.path.getmtime(expand(source_path))
-    conn.execute(
-        "INSERT OR REPLACE INTO file_meta (source_path, mtime, indexed_at) VALUES (?,?,?)",
-        (source_path, mtime, now),
+    expanded_path = expand(source_path)
+    if os.path.exists(expanded_path):
+        mtime = os.path.getmtime(expanded_path)
+    
+    cur.execute(
+        """INSERT INTO seek_file_meta (source_path, mtime, indexed_at) VALUES (%s, %s, %s)
+           ON CONFLICT (source_path) DO UPDATE SET mtime=%s, indexed_at=%s""",
+        (source_path, mtime, now, mtime, now),
     )
     conn.commit()
 
@@ -85,13 +125,19 @@ def search_vector(conn, query_embedding, top_k=5, label=None):
     if qnorm == 0:
         return []
 
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
     where = "WHERE embedding IS NOT NULL"
     params = []
     if label:
-        where += " AND label=?"
+        where += " AND label=%s"
         params.append(label)
 
-    rows = conn.execute(f"SELECT id, source_path, label, chunk_text, line_start, line_end, embedding FROM chunks {where}", params).fetchall()
+    cur.execute(
+        f"SELECT id, source_path, label, chunk_text, line_start, line_end, embedding FROM seek_chunks {where}",
+        params
+    )
+    rows = cur.fetchall()
 
     scored = []
     for row in rows:
@@ -107,56 +153,64 @@ def search_vector(conn, query_embedding, top_k=5, label=None):
 
 
 def search_fts(conn, query, top_k=5, label=None):
-    """FTS5 search."""
-    # Escape special FTS chars
-    safe_query = query.replace('"', '""')
+    """Full-text search using PostgreSQL tsquery."""
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # Convert query to tsquery format
+    # Simple approach: split by spaces and AND them together
+    terms = query.strip().split()
+    if not terms:
+        return []
+    
+    # Create tsquery with OR between terms for more flexible matching
+    tsquery = " | ".join(terms)
+    
     try:
         if label:
-            rows = conn.execute(
-                """SELECT c.id, c.source_path, c.label, c.chunk_text, c.line_start, c.line_end,
-                          rank as score
-                   FROM chunks_fts f JOIN chunks c ON f.rowid = c.id
-                   WHERE chunks_fts MATCH ? AND c.label=?
-                   ORDER BY rank LIMIT ?""",
-                (safe_query, label, top_k),
-            ).fetchall()
+            cur.execute(
+                """SELECT id, source_path, label, chunk_text, line_start, line_end,
+                          ts_rank(to_tsvector('english', chunk_text), plainto_tsquery('english', %s)) as score
+                   FROM seek_chunks
+                   WHERE to_tsvector('english', chunk_text) @@ plainto_tsquery('english', %s) AND label=%s
+                   ORDER BY score DESC LIMIT %s""",
+                (query, query, label, top_k),
+            )
         else:
-            rows = conn.execute(
-                """SELECT c.id, c.source_path, c.label, c.chunk_text, c.line_start, c.line_end,
-                          rank as score
-                   FROM chunks_fts f JOIN chunks c ON f.rowid = c.id
-                   WHERE chunks_fts MATCH ?
-                   ORDER BY rank LIMIT ?""",
-                (safe_query, top_k),
-            ).fetchall()
-    except sqlite3.OperationalError:
-        # FTS query syntax error — try as phrase
-        try:
-            phrase = f'"{safe_query}"'
-            if label:
-                rows = conn.execute(
-                    """SELECT c.id, c.source_path, c.label, c.chunk_text, c.line_start, c.line_end,
-                              rank as score
-                       FROM chunks_fts f JOIN chunks c ON f.rowid = c.id
-                       WHERE chunks_fts MATCH ? AND c.label=?
-                       ORDER BY rank LIMIT ?""",
-                    (phrase, label, top_k),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """SELECT c.id, c.source_path, c.label, c.chunk_text, c.line_start, c.line_end,
-                              rank as score
-                       FROM chunks_fts f JOIN chunks c ON f.rowid = c.id
-                       WHERE chunks_fts MATCH ?
-                       ORDER BY rank LIMIT ?""",
-                    (phrase, top_k),
-                ).fetchall()
-        except sqlite3.OperationalError:
-            return []
-    return [(abs(float(r["score"])) if r["score"] else 0.0, r) for r in rows]
+            cur.execute(
+                """SELECT id, source_path, label, chunk_text, line_start, line_end,
+                          ts_rank(to_tsvector('english', chunk_text), plainto_tsquery('english', %s)) as score
+                   FROM seek_chunks
+                   WHERE to_tsvector('english', chunk_text) @@ plainto_tsquery('english', %s)
+                   ORDER BY score DESC LIMIT %s""",
+                (query, query, top_k),
+            )
+        rows = cur.fetchall()
+    except psycopg2.Error:
+        # Fallback to ILIKE search if FTS fails
+        pattern = f"%{query}%"
+        if label:
+            cur.execute(
+                """SELECT id, source_path, label, chunk_text, line_start, line_end, 0.5 as score
+                   FROM seek_chunks
+                   WHERE chunk_text ILIKE %s AND label=%s
+                   LIMIT %s""",
+                (pattern, label, top_k),
+            )
+        else:
+            cur.execute(
+                """SELECT id, source_path, label, chunk_text, line_start, line_end, 0.5 as score
+                   FROM seek_chunks
+                   WHERE chunk_text ILIKE %s
+                   LIMIT %s""",
+                (pattern, top_k),
+            )
+        rows = cur.fetchall()
+    
+    return [(float(r["score"]) if r["score"] else 0.0, r) for r in rows]
 
 
 def delete_source(conn, source_path):
-    conn.execute("DELETE FROM chunks WHERE source_path=?", (source_path,))
-    conn.execute("DELETE FROM file_meta WHERE source_path=?", (source_path,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM seek_chunks WHERE source_path=%s", (source_path,))
+    cur.execute("DELETE FROM seek_file_meta WHERE source_path=%s", (source_path,))
     conn.commit()

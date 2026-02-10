@@ -212,6 +212,10 @@
             .dashboard-grid {
                 grid-template-columns: 1fr;
             }
+
+            .task-board-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -229,6 +233,7 @@
             <button onclick="loadProjectData()">Load Project Data</button>
             <button onclick="loadAllProjects()">Load All Projects</button>
             <button onclick="refreshData()">Refresh Data</button>
+            <button onclick="dashboard.openCreateTaskModal()" style="background-color: #28a745; color: white;">Create New Task</button>
         </div>
         
         <div id="loadingIndicator" class="loading" style="display: none;">
@@ -266,9 +271,47 @@
             </div>
             
             <div class="card">
-                <h3 class="card-title">Recent Tasks</h3>
-                <div id="recentTasksList">
-                    <!-- Recent tasks will be populated here -->
+                <h3 class="card-title">Activity Heat Map</h3>
+                <div id="activityHeatMap"></div>
+            </div>
+            
+            <div class="card">
+                <h3 class="card-title">Burn-down Chart</h3>
+                <div class="chart-container">
+                    <canvas id="burndownChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="card-title">Timeline View</h3>
+                <div id="timelineContainer" style="overflow-x: auto; padding: 10px;">
+                    <div id="timelineChart" style="min-width: 800px; height: 300px;"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="card-title">Task Board</h3>
+                <div class="task-board-grid">
+                    <div class="task-column" id="todo-column" data-status="todo">
+                        <h4>To Do</h4>
+                        <div class="task-list" id="todoTasks"></div>
+                    </div>
+                    <div class="task-column" id="in-progress-column" data-status="in-progress">
+                        <h4>In Progress</h4>
+                        <div class="task-list" id="inProgressTasks"></div>
+                    </div>
+                    <div class="task-column" id="completed-column" data-status="completed">
+                        <h4>Completed</h4>
+                        <div class="task-list" id="completedTasks"></div>
+                    </div>
+                    <div class="task-column" id="blocked-column" data-status="blocked">
+                        <h4>Blocked</h4>
+                        <div class="task-list" id="blockedTasks"></div>
+                    </div>
+                    <div class="task-column" id="review-column" data-status="review">
+                        <h4>Review</h4>
+                        <div class="task-list" id="reviewTasks"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -281,311 +324,40 @@
         </div>
     </div>
 
+    <script src="shared-dashboard.js"></script>
     <script>
-        // Global variables to hold chart instances
-        let statusChart = null;
-        let priorityChart = null;
-        let categoryChart = null;
-        
-        // Sample data for demonstration (will be replaced with actual data from PostgreSQL)
-        const sampleProjects = [
-            { project: 'openclaw', total: 142, completed: 85, inProgress: 35, todo: 22 },
-            { project: 'moltbot-helpers', total: 27, completed: 15, inProgress: 7, todo: 5 },
-            { project: 'migration', total: 20, completed: 18, inProgress: 2, todo: 0 },
-            { project: 'finance', total: 10, completed: 5, inProgress: 3, todo: 2 }
-        ];
-        
-        // Initialize the dashboard
+        // Initialize the main dashboard with appropriate configuration
         document.addEventListener('DOMContentLoaded', function() {
-            initializeDashboard();
+            const dashboard = new OpenClawDashboard({
+                isDemoMode: false,
+                apiBaseUrl: '/api',
+                title: 'OpenClaw Task Management Dashboard',
+                subtitle: 'Visualizing tasks by project from PostgreSQL database',
+                showDisclaimer: false,
+                features: {
+                    refreshButton: true,
+                    loadingIndicator: true,
+                    errorHandling: true,
+                    projectSelection: true,
+                    allProjectsView: true,
+                    interactiveTasks: true,  // Enable interactive task management
+                    taskEditing: true,       // Enable task editing
+                    taskCreation: true,      // Enable task creation
+                    dragAndDrop: true,       // Enable drag-and-drop functionality
+                    timeTracking: true,      // Enable time tracking
+                    timelineView: true,      // Enable timeline/Gantt view
+                    assignmentTracking: true, // Enable assignment tracking
+                    tagsLabeling: true,      // Enable tags and labeling
+                    dependencyTracking: true, // Enable dependency tracking
+                    taskBreakdowns: true,    // Enable task breakdowns/subtasks
+                    burndownChart: true,     // Enable burn-down chart
+                    activityHeatMap: true    // Enable activity heat map
+                }
+            });
+            
+            window.mainDashboard = dashboard;
+            dashboard.initialize();
         });
-        
-        async function initializeDashboard() {
-            try {
-                // In a real implementation, this would fetch from the PostgreSQL database
-                // For now, we'll populate with sample projects
-                populateProjectSelector(sampleProjects.map(p => p.project));
-                
-                // Load all projects view by default
-                await loadAllProjects();
-            } catch (error) {
-                showError('Error initializing dashboard: ' + error.message);
-            }
-        }
-        
-        function populateProjectSelector(projects) {
-            const select = document.getElementById('projectSelect');
-            select.innerHTML = '<option value="">Select a project...</option>';
-            
-            projects.forEach(project => {
-                const option = document.createElement('option');
-                option.value = project;
-                option.textContent = project;
-                select.appendChild(option);
-            });
-        }
-        
-        function showLoading(show) {
-            document.getElementById('loadingIndicator').style.display = show ? 'block' : 'none';
-        }
-        
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMessage');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-            
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
-        }
-        
-        function hideError() {
-            document.getElementById('errorMessage').style.display = 'none';
-        }
-        
-        async function loadProjectData() {
-            const selectedProject = document.getElementById('projectSelect').value;
-            
-            if (!selectedProject) {
-                showError('Please select a project first');
-                return;
-            }
-            
-            showLoading(true);
-            hideError();
-            
-            try {
-                // In a real implementation, this would fetch from PostgreSQL
-                // For demo purposes, we'll generate mock data based on the selected project
-                const projectData = await fetchProjectData(selectedProject);
-                
-                displayProjectData(projectData);
-                
-                document.getElementById('dashboardContent').style.display = 'block';
-                document.getElementById('allProjectsView').style.display = 'none';
-            } catch (error) {
-                showError('Error loading project data: ' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        async function loadAllProjects() {
-            showLoading(true);
-            hideError();
-            
-            try {
-                // In a real implementation, this would fetch from PostgreSQL
-                const allProjectsData = await fetchAllProjectsData();
-                
-                displayAllProjects(allProjectsData);
-                
-                document.getElementById('allProjectsView').style.display = 'block';
-                document.getElementById('dashboardContent').style.display = 'none';
-            } catch (error) {
-                showError('Error loading all projects: ' + error.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        async function refreshData() {
-            // Simply reload the current view
-            if (document.getElementById('dashboardContent').style.display === 'block') {
-                await loadProjectData();
-            } else {
-                await loadAllProjects();
-            }
-        }
-        
-        // Real data fetching functions - these connect to the PostgreSQL-backed API
-        async function fetchProjectData(projectName) {
-            try {
-                const response = await fetch(`/api/project/${encodeURIComponent(projectName)}`);
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status} ${response.statusText}`);
-                }
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error('Error fetching project data:', error);
-                throw error;
-            }
-        }
-        
-        async function fetchAllProjectsData() {
-            try {
-                const response = await fetch('/api/projects');
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status} ${response.statusText}`);
-                }
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error('Error fetching all projects data:', error);
-                throw error;
-            }
-        }
-        
-        function displayProjectData(data) {
-            // Update stats
-            updateStats([
-                { label: 'Total Tasks', value: data.totalTasks },
-                { label: 'Status Types', value: Object.keys(data.statusCounts).length },
-                { label: 'Priority Levels', value: Object.keys(data.priorityCounts).length },
-                { label: 'Categories', value: Object.keys(data.categoryCounts).length }
-            ]);
-            
-            // Create/update charts
-            createOrUpdateChart('statusChart', 'bar', 'Tasks by Status', data.statusCounts);
-            createOrUpdateChart('priorityChart', 'doughnut', 'Tasks by Priority', data.priorityCounts);
-            createOrUpdateChart('categoryChart', 'bar', 'Tasks by Category', data.categoryCounts);
-            
-            // Display recent tasks
-            displayRecentTasks(data.recentTasks);
-        }
-        
-        function displayAllProjects(projectsData) {
-            const container = document.getElementById('projectListView');
-            container.innerHTML = '';
-            
-            projectsData.forEach(project => {
-                const progressPercent = project.completed > 0 ? Math.round((project.completed / project.total) * 100) : 0;
-                
-                const projectCard = document.createElement('div');
-                projectCard.className = 'project-card';
-                projectCard.innerHTML = `
-                    <div class="project-header">
-                        <div class="project-name">${project.project}</div>
-                        <div class="task-count">${project.total}</div>
-                    </div>
-                    <div>Total Tasks: ${project.total}</div>
-                    <div>Completed: ${project.completed}</div>
-                    <div>In Progress: ${project.inProgress}</div>
-                    <div>To Do: ${project.todo}</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${progressPercent}%"></div>
-                    </div>
-                    <div>${progressPercent}% Complete</div>
-                `;
-                
-                container.appendChild(projectCard);
-            });
-        }
-        
-        function updateStats(stats) {
-            const container = document.getElementById('statsGrid');
-            container.innerHTML = '';
-            
-            stats.forEach(stat => {
-                const statCard = document.createElement('div');
-                statCard.className = 'stat-card';
-                statCard.innerHTML = `
-                    <div class="stat-value">${stat.value}</div>
-                    <div class="stat-label">${stat.label}</div>
-                `;
-                container.appendChild(statCard);
-            });
-        }
-        
-        function createOrUpdateChart(canvasId, chartType, title, dataObj) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            const labels = Object.keys(dataObj);
-            const data = Object.values(dataObj);
-            
-            // Destroy existing chart if it exists
-            const existingChart = Chart.getChart(canvasId);
-            if (existingChart) {
-                existingChart.destroy();
-            }
-            
-            const chart = new Chart(ctx, {
-                type: chartType,
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: title,
-                        data: data,
-                        backgroundColor: [
-                            'rgba(67, 97, 238, 0.7)',
-                            'rgba(76, 201, 240, 0.7)',
-                            'rgba(247, 37, 133, 0.7)',
-                            'rgba(63, 55, 201, 0.7)',
-                            'rgba(118, 89, 171, 0.7)',
-                            'rgba(25, 118, 210, 0.7)'
-                        ],
-                        borderColor: [
-                            'rgba(67, 97, 238, 1)',
-                            'rgba(76, 201, 240, 1)',
-                            'rgba(247, 37, 133, 1)',
-                            'rgba(63, 55, 201, 1)',
-                            'rgba(118, 89, 171, 1)',
-                            'rgba(25, 118, 210, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: title
-                        },
-                        legend: {
-                            display: chartType !== 'doughnut'
-                        }
-                    },
-                    scales: chartType === 'bar' ? {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
-                        }
-                    } : {}
-                }
-            });
-            
-            // Store chart reference based on chart type
-            if (canvasId === 'statusChart') statusChart = chart;
-            else if (canvasId === 'priorityChart') priorityChart = chart;
-            else if (canvasId === 'categoryChart') categoryChart = chart;
-        }
-        
-        function displayRecentTasks(tasks) {
-            const container = document.getElementById('recentTasksList');
-            container.innerHTML = '';
-            
-            if (tasks.length === 0) {
-                container.innerHTML = '<p>No recent tasks found.</p>';
-                return;
-            }
-            
-            const list = document.createElement('div');
-            list.style.display = 'grid';
-            list.style.gridTemplateColumns = 'repeat(auto-fill, minmax(300px, 1fr))';
-            list.style.gap = '10px';
-            
-            tasks.forEach(task => {
-                const taskEl = document.createElement('div');
-                taskEl.style.borderBottom = '1px solid #eee';
-                taskEl.style.padding = '10px 0';
-                taskEl.style.marginBottom = '10px';
-                
-                taskEl.innerHTML = `
-                    <div style="font-weight: bold;">${task.title}</div>
-                    <div style="font-size: 0.9em; color: #666;">
-                        ID: ${task.id} | Status: ${task.status} | Priority: ${task.priority} | Date: ${task.createdDate}
-                    </div>
-                `;
-                
-                list.appendChild(taskEl);
-            });
-            
-            container.appendChild(list);
-        }
     </script>
 </body>
 </html>

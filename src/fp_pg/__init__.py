@@ -1,1 +1,0 @@
-"""PostgreSQL-powered family planner module."""

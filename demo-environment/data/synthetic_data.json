@@ -1,0 +1,121 @@
+{
+  "calendar_events": [
+    {
+      "id": "event_001",
+      "title": "Team Meeting",
+      "date": "2026-02-10",
+      "time": "10:00",
+      "duration": 60,
+      "participants": ["Alex Johnson", "Sam Chen", "Taylor Reed"],
+      "location": "Conference Room A",
+      "description": "Weekly team sync to discuss project progress",
+      "status": "confirmed"
+    },
+    {
+      "id": "event_002", 
+      "title": "Doctor Appointment",
+      "date": "2026-02-12",
+      "time": "14:30",
+      "duration": 30,
+      "participants": ["User"],
+      "location": "Dr. Smith's Office",
+      "description": "Annual checkup appointment",
+      "status": "confirmed"
+    },
+    {
+      "id": "event_003",
+      "title": "Project Deadline",
+      "date": "2026-02-15",
+      "time": "17:00",
+      "duration": 0,
+      "participants": ["User"],
+      "location": "Office",
+      "description": "Submit final project report",
+      "status": "pending"
+    }
+  ],
+  "contacts": [
+    {
+      "id": "contact_001",
+      "name": "Alex Johnson",
+      "email": "alex.johnson@example.com",
+      "phone": "+1-555-0101",
+      "relationship": "Colleague",
+      "last_contact": "2026-02-01",
+      "interaction_count": 12
+    },
+    {
+      "id": "contact_002",
+      "name": "Sam Chen", 
+      "email": "sam.chen@example.com",
+      "phone": "+1-555-0102",
+      "relationship": "Manager",
+      "last_contact": "2026-02-03",
+      "interaction_count": 8
+    },
+    {
+      "id": "contact_003",
+      "name": "Taylor Reed",
+      "email": "taylor.reed@example.com", 
+      "phone": "+1-555-0103",
+      "relationship": "Friend",
+      "last_contact": "2026-01-28",
+      "interaction_count": 5
+    }
+  ],
+  "financial_portfolio": {
+    "holdings": [
+      {
+        "symbol": "XGRO",
+        "shares": 150,
+        "avg_cost": 24.50,
+        "current_price": 26.75,
+        "value": 4012.50
+      },
+      {
+        "symbol": "MNT", 
+        "shares": 75,
+        "avg_cost": 32.10,
+        "current_price": 35.20,
+        "value": 2640.00
+      },
+      {
+        "symbol": "SVR.C",
+        "shares": 200,
+        "avg_cost": 12.25,
+        "current_price": 11.80,
+        "value": 2360.00
+      }
+    ],
+    "total_value": 8912.50,
+    "cash_balance": 1500.00,
+    "portfolio_growth": 8.5
+  },
+  "iot_devices": [
+    {
+      "id": "light_living_room",
+      "name": "Living Room Lights",
+      "type": "light",
+      "status": "on",
+      "brightness": 80,
+      "color_temp": "warm"
+    },
+    {
+      "id": "thermostat_main",
+      "name": "Main Thermostat",
+      "type": "thermostat", 
+      "status": "on",
+      "temperature": 22.5,
+      "mode": "heat",
+      "target": 22.0
+    },
+    {
+      "id": "camera_front_door",
+      "name": "Front Door Camera",
+      "type": "camera",
+      "status": "active",
+      "recording": false,
+      "motion_detected": false
+    }
+  ]
+}

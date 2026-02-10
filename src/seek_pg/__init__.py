@@ -1,1 +1,0 @@
-"""PostgreSQL-powered seek module."""

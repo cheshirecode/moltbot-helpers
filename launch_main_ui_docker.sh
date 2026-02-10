@@ -4,14 +4,16 @@
 echo "🚀 Starting OpenClaw Main Dashboard UI in Docker..."
 echo "🌐 Dashboard available at: http://localhost:5000/"
 
-# Run the main dashboard API server in Docker container
+# Copy the necessary files to a temporary location to preserve the original /app directory
+# Then run the main dashboard API server in Docker container
 docker run --rm -p 5000:5000 \
   -v /home/fred/projects/_openclaw:/data/_openclaw \
-  -v /home/fred/.openclaw/workspace:/workspace \
+  -v /home/fred/projects/moltbot-helpers:/workspace/moltbot-helpers \
+  -e DATA_DIR=/data \
+  -e WORKSPACE_DIR=/workspace \
   -e PT_DB_HOST=host.docker.internal \
   -e PT_DB_PORT=5433 \
   -e PT_DB_NAME=financial_analysis \
   -e PT_DB_USER=finance_user \
   -e PT_DB_PASSWORD=secure_finance_password \
-  -w /app \
-  moltbot-helpers-quick bash -c "pip install --user flask psycopg2-binary && python -m flask run --host=0.0.0.0 --port=5000"
+  moltbot-helpers-quick bash -c "pip install --user flask psycopg2-binary && cd /workspace/moltbot-helpers && python api.py"

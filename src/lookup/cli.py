@@ -143,17 +143,20 @@ def show_tools_reference():
     """Display CLI tools reference."""
     print("""## CLI Tools Reference
 
+All tools use PostgreSQL database in Kubernetes cluster.
+Connection: kubectl port-forward -n openclaw-services service/postgres-db 5433:5432
+
 ### seek - Semantic search engine
-  Commands: index, search, status, reindex, forget
-  Database: ~/projects/_openclaw/seek.db
+  Commands: init, index, search, status, reindex, forget
+  Tables: seek_chunks, seek_file_meta
 
 ### fp - Family Planner CLI
-  Commands: balances, net-worth, tasks, dates, people, docs, facts, finances, search
-  Database: ~/projects/_openclaw/family-planning.db
+  Commands: init, balances, net-worth, tasks, dates, people, docs, facts, finances, search
+  Tables: fp_people, fp_documents, fp_finances, fp_tasks, fp_facts, fp_key_dates, fp_addresses
 
 ### pt - Project Tracker CLI
   Commands: list, add, update, get, search
-  Database: ~/projects/_openclaw/project-tracker.db""")
+  Table: project_tracker""")
 
 
 def show_all_guidelines():

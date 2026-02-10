@@ -1,0 +1,45 @@
+# Demo Environment Configuration
+
+# General settings
+demo_mode: true
+environment_name: "OpenClaw Demo Environment"
+version: "1.0.0"
+
+# Security settings
+secure_mode: true
+network_access: false
+external_api_calls: false
+credential_access: false
+
+# Data settings
+data_path: "./data/"
+synthetic_data_only: true
+
+# Service mocking
+mock_services:
+  google_api: true
+  github_api: true
+  calendar_service: true
+  email_service: true
+  iot_service: true
+  financial_service: true
+
+# Demo settings
+demo_timeout_minutes: 60
+auto_reset_on_exit: true
+log_level: "INFO"
+
+# Port settings
+demo_port: 5002
+demo_host: "localhost"
+
+# Feature flags
+enabled_features:
+  - chat_interface
+  - task_management
+  - web_research
+  - calendar_integration
+  - code_assistance
+  - financial_analysis
+  - home_automation_simulation
+  - project_tracking

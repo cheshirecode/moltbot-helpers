@@ -3,11 +3,19 @@
 import glob
 import os
 import re
-import sqlite3
 
 import numpy as np
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 from .config import expand
+
+# Database connection settings (for PostgreSQL table chunking)
+DB_HOST = os.environ.get("SEEK_DB_HOST", os.environ.get("PT_DB_HOST", "localhost"))
+DB_PORT = os.environ.get("SEEK_DB_PORT", os.environ.get("PT_DB_PORT", "5433"))
+DB_NAME = os.environ.get("SEEK_DB_NAME", os.environ.get("PT_DB_NAME", "financial_analysis"))
+DB_USER = os.environ.get("SEEK_DB_USER", os.environ.get("PT_DB_USER", "finance_user"))
+DB_PASS = os.environ.get("SEEK_DB_PASS", os.environ.get("PT_DB_PASS", "secure_finance_password"))
 
 # Lazy model cache
 _model = None
@@ -104,28 +112,59 @@ def chunk_text(filepath, chunk_size=256, overlap=32):
     return chunks
 
 
-def chunk_sqlite(db_path, tables):
+def chunk_postgres_table(table_name, columns=None):
     """Each row becomes a chunk formatted as key: value pairs.
     Returns list of (text, line_start, line_end) — line numbers are row indices.
     """
-    db_path = expand(db_path)
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASS
+    )
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     chunks = []
-    for table in tables:
-        try:
-            rows = conn.execute(f"SELECT * FROM {table}").fetchall()
-        except sqlite3.OperationalError:
-            continue
+    
+    try:
+        if columns:
+            cols = ", ".join(columns)
+            cur.execute(f"SELECT {cols} FROM {table_name}")
+        else:
+            cur.execute(f"SELECT * FROM {table_name}")
+        rows = cur.fetchall()
+        
         for i, row in enumerate(rows):
             parts = []
-            for col in row.keys():
-                val = row[col]
+            for col, val in row.items():
                 if val is not None:
-                    parts.append(f"{table}.{col}: {val}")
+                    parts.append(f"{table_name}.{col}: {val}")
             if parts:
                 chunks.append(("\n".join(parts), i + 1, i + 1))
-    conn.close()
+    except psycopg2.Error as e:
+        print(f"Error reading table {table_name}: {e}")
+    finally:
+        conn.close()
+    
+    return chunks
+
+
+# Keep for backwards compatibility, but use PostgreSQL
+def chunk_sqlite(db_path, tables):
+    """Deprecated: Use chunk_postgres_table instead.
+    This function now indexes from PostgreSQL tables if they exist.
+    """
+    chunks = []
+    for table in tables:
+        # Try PostgreSQL tables with common prefixes
+        for prefix in ["", "fp_", "seek_", "project_"]:
+            try:
+                table_chunks = chunk_postgres_table(f"{prefix}{table}")
+                if table_chunks:
+                    chunks.extend(table_chunks)
+                    break
+            except:
+                continue
     return chunks
 
 

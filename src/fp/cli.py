@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
-"""fp — Family Planner CLI for mox.db"""
+"""fp — Family Planner CLI (PostgreSQL backend)"""
 
 import os
 import re
-import sqlite3
 import sys
 from datetime import datetime
 
-DB_PATH = os.path.expanduser(os.environ.get("FP_DB", "~/projects/_openclaw/family-planning.db"))
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+# Database connection settings
+DB_HOST = os.environ.get("FP_DB_HOST", os.environ.get("PT_DB_HOST", "localhost"))
+DB_PORT = os.environ.get("FP_DB_PORT", os.environ.get("PT_DB_PORT", "5433"))
+DB_NAME = os.environ.get("FP_DB_NAME", os.environ.get("PT_DB_NAME", "financial_analysis"))
+DB_USER = os.environ.get("FP_DB_USER", os.environ.get("PT_DB_USER", "finance_user"))
+DB_PASS = os.environ.get("FP_DB_PASS", os.environ.get("PT_DB_PASS", "secure_finance_password"))
 
 USAGE = """\
-fp — Family Planner CLI
+fp — Family Planner CLI (PostgreSQL)
 
 Usage: fp <command> [args]
 
@@ -33,56 +40,58 @@ Update commands:
   complete-task <id>
   set <table> <id> <column> <value>
   exec <sql>            Run arbitrary SQL (INSERT/UPDATE/DELETE)
+  
+Admin commands:
+  init                  Initialize database tables
 """
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    """Connect to PostgreSQL database."""
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASS
+    )
     return conn
 
 
 def fmt_rows(rows, columns=None):
     if not rows:
         return "(no results)"
-    if columns is None:
+    if columns is None and rows:
         columns = rows[0].keys() if hasattr(rows[0], "keys") else [f"col{i}" for i in range(len(rows[0]))]
     lines = []
     for row in rows:
         parts = []
         for col in columns:
-            val = row[col] if hasattr(row, "keys") else row[columns.index(col)]
+            val = row[col] if hasattr(row, "keys") else row[list(columns).index(col)]
             if val is not None:
                 parts.append(f"{col}: {val}")
         lines.append(" | ".join(parts))
     return "\n".join(lines)
 
 
-def fmt_rows_for_llm(rows, column_names): # Added column_names parameter
+def fmt_rows_for_llm(rows, column_names):
     if not rows:
         return "(no records)"
     
-    # Column names are now passed explicitly
     columns = column_names
     if not columns:
         return "(no records)"
 
-    # Format header
     header = "| " + " | ".join(columns) + " |\n"
-    # Generate separator dynamically
-    separator_parts = []
-    for col in columns:
-        # Minimum width of 3 for markdown table (e.g., ---)
-        separator_parts.append("-" * max(3, len(col))) 
+    separator_parts = ["-" * max(3, len(col)) for col in columns]
     separator = "|-" + "-|-".join(separator_parts) + "-|\n"
 
-    # Format rows
     data_rows = []
-    for row_tuple in rows: # Iterate over tuple elements
+    for row in rows:
         formatted_values = []
-        for val in row_tuple: # val is directly the value from the tuple
+        for col in columns:
+            val = row[col] if hasattr(row, "keys") else row[list(columns).index(col)]
             val_str = str(val) if val is not None else ""
-            # Escape markdown table breaking characters and newlines
             val_str = val_str.replace('|', '\\|').replace('\n', '\\n')
             formatted_values.append(val_str)
         data_rows.append("| " + " | ".join(formatted_values) + " |")
@@ -90,21 +99,136 @@ def fmt_rows_for_llm(rows, column_names): # Added column_names parameter
     return header + separator + "\n".join(data_rows)
 
 
+def cmd_init():
+    """Initialize database tables."""
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # People table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fp_people (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            relation TEXT,
+            dob DATE,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Documents table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fp_documents (
+            id SERIAL PRIMARY KEY,
+            person_id INTEGER REFERENCES fp_people(id),
+            doc_type TEXT NOT NULL,
+            doc_number TEXT,
+            country TEXT,
+            issued DATE,
+            expires DATE,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Key dates table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fp_key_dates (
+            id SERIAL PRIMARY KEY,
+            label TEXT NOT NULL,
+            date DATE,
+            category TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Finances table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fp_finances (
+            id SERIAL PRIMARY KEY,
+            category TEXT,
+            asset_type TEXT,
+            country TEXT,
+            key TEXT NOT NULL,
+            value TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Tasks table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fp_tasks (
+            id SERIAL PRIMARY KEY,
+            action TEXT NOT NULL,
+            status TEXT DEFAULT 'OPEN',
+            priority TEXT DEFAULT 'P2',
+            due_date DATE,
+            category TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Facts table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fp_facts (
+            id SERIAL PRIMARY KEY,
+            topic TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT,
+            source TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Addresses table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fp_addresses (
+            id SERIAL PRIMARY KEY,
+            person_id INTEGER REFERENCES fp_people(id),
+            address_type TEXT,
+            street TEXT,
+            city TEXT,
+            state TEXT,
+            postal_code TEXT,
+            country TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    conn.commit()
+    print("Database tables initialized successfully.")
+    conn.close()
+
 
 def cmd_balances():
-    db = get_db()
-    rows = db.execute(
-        "SELECT key, value, notes FROM finances WHERE category='banking' ORDER BY key"
-    ).fetchall()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "SELECT key, value, notes FROM fp_finances WHERE category='banking' ORDER BY key"
+    )
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
 
 
 def cmd_net_worth():
-    db = get_db()
-    rows = db.execute(
-        "SELECT key, value, notes, category, asset_type, country FROM finances ORDER BY key"
-    ).fetchall()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "SELECT key, value, notes, category, asset_type, country FROM fp_finances ORDER BY key"
+    )
+    rows = cur.fetchall()
     total_cad_equivalent = 0.0
     
     print("--- Detailed Net Worth Calculation ---")
@@ -114,13 +238,11 @@ def cmd_net_worth():
         asset_cad = 0.0
         processed = False
 
-        # Prioritize CAD equivalent from notes
         cad_equiv_match = re.search(r"CAD equivalent:\s*([\d,.]+)", notes_str)
         if not cad_equiv_match:
             cad_equiv_match = re.search(r"([\d,.]+)\s*CAD", notes_str, re.IGNORECASE)
 
         if cad_equiv_match:
-            # Clean the extracted string for float conversion (remove commas, ensure only one dot)
             numeric_str = re.sub(r'[^\d.]', '', cad_equiv_match.group(1)).strip('.')
             try:
                 asset_cad = float(numeric_str)
@@ -130,7 +252,6 @@ def cmd_net_worth():
                 print(f"  - {r['key']} ({r['value']}): Could not convert '{numeric_str}' from notes to float, skipping.")
 
         if not processed:
-            # If not processed by notes, try to parse directly if it looks like CAD in value_str
             cad_match = re.search(r"CAD\s*([\d,.]+)", value_str)
             if not cad_match:
                 cad_match = re.search(r"([\d,.]+)\s*CAD", value_str)
@@ -145,132 +266,142 @@ def cmd_net_worth():
                     print(f"  - {r['key']} ({r['value']}): Could not convert '{numeric_str}' from value to float, skipping.")
 
         if not processed:
-            # Fallback for raw numbers without explicit currency if no CAD equivalent
             numeric_match = re.search(r"[\d,.]+", value_str.replace(",", ""))
             if numeric_match:
                 amount = float(numeric_match.group())
-                # Attempt a rough conversion for SGD if it's the only info
                 if "SGD" in value_str.upper() or "SGD" in notes_str.upper():
-                    asset_cad = amount * 0.95 # Approximate SGD->CAD rate
+                    asset_cad = amount * 0.95
                     print(f"  - {r['key']} ({r['value']}): {asset_cad:,.2f} CAD (approx SGD->CAD)")
                     processed = True
                 elif "VND" in value_str.upper() or "VND" in notes_str.upper():
-                    # If VND, and not processed by notes, and no direct CAD:
                     print(f"  - {r['key']} ({r['value']}): VND amount, no explicit CAD conversion found, skipping for now.")
                 else:
                     print(f"  - {r['key']} ({r['value']}): No currency or explicit CAD equivalent found, skipping for now.")
             else:
-                # This could catch values like "active", "unemployed" etc.
                 print(f"  - {r['key']} ({r['value']}): Could not parse numeric value, skipping.")
         
         total_cad_equivalent += asset_cad
         
     print("------------------------------------")
     print(f"Total Net Worth (approx CAD): {total_cad_equivalent:,.2f}")
-    db.close()
+    conn.close()
 
 
 def cmd_tasks():
-    db = get_db()
-    rows = db.execute(
-        "SELECT id, action, status, priority, due_date, category FROM tasks WHERE status != 'DONE' ORDER BY priority, due_date"
-    ).fetchall()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "SELECT id, action, status, priority, due_date, category FROM fp_tasks WHERE status != 'DONE' ORDER BY priority, due_date"
+    )
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
 
 
 def cmd_dates(category=None):
-    db = get_db()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     if category:
-        rows = db.execute(
-            "SELECT label, date, category, notes FROM key_dates WHERE category=? ORDER BY date",
+        cur.execute(
+            "SELECT label, date, category, notes FROM fp_key_dates WHERE category=%s ORDER BY date",
             (category,),
-        ).fetchall()
+        )
     else:
-        rows = db.execute(
-            "SELECT label, date, category, notes FROM key_dates ORDER BY date"
-        ).fetchall()
+        cur.execute(
+            "SELECT label, date, category, notes FROM fp_key_dates ORDER BY date"
+        )
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
 
 
 def cmd_people():
-    db = get_db()
-    rows = db.execute(
-        "SELECT id, name, relation, dob, notes FROM people ORDER BY id"
-    ).fetchall()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "SELECT id, name, relation, dob, notes FROM fp_people ORDER BY id"
+    )
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
 
 
 def cmd_docs(person=None):
-    db = get_db()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     if person:
-        rows = db.execute(
+        cur.execute(
             """SELECT d.doc_type, d.doc_number, d.country, d.issued, d.expires, d.notes, p.name
-               FROM documents d JOIN people p ON d.person_id=p.id
-               WHERE p.name LIKE ? ORDER BY p.name, d.doc_type""",
+               FROM fp_documents d JOIN fp_people p ON d.person_id=p.id
+               WHERE p.name ILIKE %s ORDER BY p.name, d.doc_type""",
             (f"%{person}%",),
-        ).fetchall()
+        )
     else:
-        rows = db.execute(
+        cur.execute(
             """SELECT d.doc_type, d.doc_number, d.country, d.issued, d.expires, d.notes, p.name
-               FROM documents d JOIN people p ON d.person_id=p.id ORDER BY p.name, d.doc_type"""
-        ).fetchall()
+               FROM fp_documents d JOIN fp_people p ON d.person_id=p.id ORDER BY p.name, d.doc_type"""
+        )
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
 
 
 def cmd_facts(topic=None):
-    db = get_db()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     if topic:
-        rows = db.execute(
-            "SELECT topic, key, value, source FROM facts WHERE topic LIKE ? ORDER BY topic, key",
+        cur.execute(
+            "SELECT topic, key, value, source FROM fp_facts WHERE topic ILIKE %s ORDER BY topic, key",
             (f"%{topic}%",),
-        ).fetchall()
+        )
     else:
-        rows = db.execute(
-            "SELECT topic, key, value FROM facts ORDER BY topic, key"
-        ).fetchall()
+        cur.execute(
+            "SELECT topic, key, value FROM fp_facts ORDER BY topic, key"
+        )
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
 
 
 def cmd_search(term):
-    db = get_db()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     pattern = f"%{term}%"
     tables = {
-        "facts": "SELECT 'facts' as tbl, topic||'.'||key as item, value FROM facts WHERE topic LIKE ? OR key LIKE ? OR value LIKE ?",
-        "tasks": "SELECT 'tasks' as tbl, action as item, notes as value FROM tasks WHERE action LIKE ? OR notes LIKE ? OR category LIKE ?",
-        "key_dates": "SELECT 'key_dates' as tbl, label as item, notes as value FROM key_dates WHERE label LIKE ? OR notes LIKE ? OR category LIKE ?",
-        "people": "SELECT 'people' as tbl, name as item, notes as value FROM people WHERE name LIKE ? OR notes LIKE ? OR relation LIKE ?",
-        "finances": "SELECT 'finances' as tbl, category||'.'||key as item, value FROM finances WHERE key LIKE ? OR value LIKE ? OR notes LIKE ?",
+        "facts": "SELECT 'facts' as tbl, topic||'.'||key as item, value FROM fp_facts WHERE topic ILIKE %s OR key ILIKE %s OR value ILIKE %s",
+        "tasks": "SELECT 'tasks' as tbl, action as item, notes as value FROM fp_tasks WHERE action ILIKE %s OR notes ILIKE %s OR category ILIKE %s",
+        "key_dates": "SELECT 'key_dates' as tbl, label as item, notes as value FROM fp_key_dates WHERE label ILIKE %s OR notes ILIKE %s OR category ILIKE %s",
+        "people": "SELECT 'people' as tbl, name as item, notes as value FROM fp_people WHERE name ILIKE %s OR notes ILIKE %s OR relation ILIKE %s",
+        "finances": "SELECT 'finances' as tbl, category||'.'||key as item, value FROM fp_finances WHERE key ILIKE %s OR value ILIKE %s OR notes ILIKE %s",
     }
     results = []
     for tbl, sql in tables.items():
-        rows = db.execute(sql, (pattern, pattern, pattern)).fetchall()
-        results.extend(rows)
+        cur.execute(sql, (pattern, pattern, pattern))
+        results.extend(cur.fetchall())
     if results:
         for r in results:
             print(f"[{r['tbl']}] {r['item']}: {r['value']}")
     else:
         print(f"No results for '{term}'")
-    db.close()
+    conn.close()
 
 
 def cmd_sql(query):
-    db = get_db()
-    rows = db.execute(query).fetchall()
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(query)
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
 
 
 def cmd_exec(sql):
-    db = get_db()
-    cursor = db.execute(sql)
-    db.commit()
-    print(f"OK — {cursor.rowcount} row(s) affected")
-    db.close()
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(sql)
+    conn.commit()
+    print(f"OK — {cur.rowcount} row(s) affected")
+    conn.close()
 
 
 def cmd_add_fact(args):
@@ -279,14 +410,15 @@ def cmd_add_fact(args):
         return
     topic, key, value = args[0], args[1], args[2]
     source = args[3] if len(args) > 3 else None
-    db = get_db()
-    db.execute(
-        "INSERT INTO facts (topic, key, value, source) VALUES (?, ?, ?, ?)",
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO fp_facts (topic, key, value, source) VALUES (%s, %s, %s, %s)",
         (topic, key, value, source),
     )
-    db.commit()
+    conn.commit()
     print(f"Added fact: {topic}.{key}")
-    db.close()
+    conn.close()
 
 
 def cmd_add_task(args):
@@ -297,25 +429,27 @@ def cmd_add_task(args):
     priority = args[1] if len(args) > 1 else "P2"
     due_date = args[2] if len(args) > 2 else None
     category = args[3] if len(args) > 3 else None
-    db = get_db()
-    db.execute(
-        "INSERT INTO tasks (action, priority, due_date, category) VALUES (?, ?, ?, ?)",
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO fp_tasks (action, priority, due_date, category) VALUES (%s, %s, %s, %s)",
         (action, priority, due_date, category),
     )
-    db.commit()
+    conn.commit()
     print(f"Added task: {action}")
-    db.close()
+    conn.close()
 
 
 def cmd_complete_task(task_id):
-    db = get_db()
-    db.execute(
-        "UPDATE tasks SET status='DONE', updated_at=datetime('now') WHERE id=?",
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE fp_tasks SET status='DONE', updated_at=CURRENT_TIMESTAMP WHERE id=%s",
         (task_id,),
     )
-    db.commit()
+    conn.commit()
     print(f"Task {task_id} marked DONE")
-    db.close()
+    conn.close()
 
 
 def cmd_set(args):
@@ -323,80 +457,90 @@ def cmd_set(args):
         print("Usage: fp set <table> <id> <column> <value>")
         return
     table, row_id, column, value = args[0], args[1], args[2], args[3]
-    # Whitelist tables and validate column names
-    allowed_tables = {"people", "documents", "key_dates", "finances", "tasks", "facts", "addresses"}
+    allowed_tables = {"people": "fp_people", "documents": "fp_documents", "key_dates": "fp_key_dates", 
+                      "finances": "fp_finances", "tasks": "fp_tasks", "facts": "fp_facts", "addresses": "fp_addresses"}
     if table not in allowed_tables:
-        print(f"Table must be one of: {', '.join(sorted(allowed_tables))}")
+        print(f"Table must be one of: {', '.join(sorted(allowed_tables.keys()))}")
         return
     if not re.match(r"^[a-z_]+$", column):
         print("Invalid column name")
         return
-    db = get_db()
-    db.execute(
-        f"UPDATE {table} SET {column}=?, updated_at=datetime('now') WHERE id=?",
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        f"UPDATE {allowed_tables[table]} SET {column}=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s",
         (value, row_id),
     )
-    db.commit()
+    conn.commit()
     print(f"Updated {table}.{column} for id {row_id}")
-    db.close()
+    conn.close()
 
 
 def cmd_finances(asset_type=None, country=None):
-    db = get_db()
-    query = "SELECT category, asset_type, country, key, value, notes FROM finances WHERE 1=1"
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    query = "SELECT category, asset_type, country, key, value, notes FROM fp_finances WHERE 1=1"
     params = []
     if asset_type:
-        query += " AND asset_type=?"
+        query += " AND asset_type=%s"
         params.append(asset_type)
     if country:
-        query += " AND country=?"
+        query += " AND country=%s"
         params.append(country)
     query += " ORDER BY country, asset_type, key"
-    rows = db.execute(query, params).fetchall()
+    cur.execute(query, params)
+    rows = cur.fetchall()
     print(fmt_rows(rows))
-    db.close()
+    conn.close()
+
 
 SENSITIVE_COLUMNS_MAP = {
-    "documents": ["doc_number"]
+    "fp_documents": ["doc_number"]
 }
+
 
 def cmd_dump():
     output_content = ""
+    conn = get_db()
+    cur = conn.cursor()
 
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = [row[0] for row in cursor.fetchall()]
+    cur.execute("""
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name LIKE 'fp_%'
+        ORDER BY table_name
+    """)
+    tables = [row[0] for row in cur.fetchall()]
 
     for table_name in tables:
         output_content += f"## {table_name}\n\n"
         
-        cursor.execute(f"PRAGMA table_info({table_name});")
-        column_info = cursor.fetchall()
-        all_column_names = [col[1] for col in column_info]
+        cur.execute(f"""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = %s ORDER BY ordinal_position
+        """, (table_name,))
+        all_column_names = [col[0] for col in cur.fetchall()]
 
-        cursor.execute(f"SELECT * FROM {table_name};")
-        rows_data = cursor.fetchall()
+        cur.execute(f"SELECT * FROM {table_name}")
+        rows_data = cur.fetchall()
 
         processed_rows = []
         for row_tuple in rows_data:
-            processed_row = []
+            processed_row = {}
             for i, col_name in enumerate(all_column_names):
                 val = row_tuple[i]
                 if table_name in SENSITIVE_COLUMNS_MAP and col_name in SENSITIVE_COLUMNS_MAP[table_name]:
-                    processed_row.append("[REDACTED]" if val is not None else None)
+                    processed_row[col_name] = "[REDACTED]" if val is not None else None
                 else:
-                    processed_row.append(val)
-            processed_rows.append(tuple(processed_row)) # Convert list back to tuple
+                    processed_row[col_name] = val
+            processed_rows.append(processed_row)
 
         if processed_rows:
             output_content += fmt_rows_for_llm(processed_rows, all_column_names) + "\n\n"
         else:
             output_content += "(no records)\n\n"
 
-    db.close()
-    print(output_content) # Print to stdout # Print to stdout
+    conn.close()
+    print(output_content)
 
 
 def main():
@@ -409,6 +553,7 @@ def main():
     rest = args[1:]
 
     commands = {
+        "init": lambda: cmd_init(),
         "balances": lambda: cmd_balances(),
         "net-worth": lambda: cmd_net_worth(),
         "tasks": lambda: cmd_tasks(),
@@ -424,7 +569,7 @@ def main():
         "add-task": lambda: cmd_add_task(rest),
         "complete-task": lambda: cmd_complete_task(rest[0]) if rest else print("Usage: fp complete-task <id>"),
         "set": lambda: cmd_set(rest),
-        "dump": lambda: cmd_dump(), # New command
+        "dump": lambda: cmd_dump(),
     }
 
     if cmd in commands:

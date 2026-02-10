@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""seek — Local semantic search engine."""
+"""seek — Local semantic search engine (PostgreSQL backend)."""
 
 import argparse
 import os
@@ -7,14 +7,14 @@ import sys
 import time
 
 from .config import load_config, expand
-from .store import init_db, upsert_chunks, delete_source, get_file_mtime
-from .indexer import chunk_markdown, chunk_text, chunk_sqlite, embed, resolve_paths
+from .store import init_db, get_db, upsert_chunks, delete_source, get_file_mtime
+from .indexer import chunk_markdown, chunk_text, chunk_postgres_table, embed, resolve_paths
 from .search import hybrid_search
 
 
 def cmd_index(args):
     cfg = load_config()
-    conn = init_db(cfg["dbPath"])
+    conn = init_db()  # Now uses PostgreSQL
     model_name = cfg["model"]
     chunk_size = cfg.get("chunkSize", 256)
     overlap = cfg.get("chunkOverlap", 32)
@@ -58,23 +58,14 @@ def cmd_index(args):
         total_files += 1
         print(f"  {filepath} ({len(chunks)} chunks)")
 
-    # Index SQLite sources
-    for src in cfg.get("sqliteSources", []):
-        db_path = expand(src["path"])
-        label = src.get("label", "sqlite")
-        tables = src.get("tables", [])
-        source_key = f"sqlite:{db_path}"
+    # Index PostgreSQL tables
+    for src in cfg.get("postgresTables", []):
+        table_name = src["table"]
+        label = src.get("label", "postgres")
+        columns = src.get("columns")
+        source_key = f"postgres:{table_name}"
 
-        if not args.force:
-            stored_mtime = get_file_mtime(conn, source_key)
-            try:
-                current_mtime = os.path.getmtime(db_path)
-            except OSError:
-                continue
-            if stored_mtime and abs(current_mtime - stored_mtime) < 0.01:
-                continue
-
-        chunks = chunk_sqlite(db_path, tables)
+        chunks = chunk_postgres_table(table_name, columns)
         if not chunks:
             continue
 
@@ -91,7 +82,7 @@ def cmd_index(args):
 
 def cmd_search(args):
     cfg = load_config()
-    conn = init_db(cfg["dbPath"])
+    conn = init_db()
     query = " ".join(args.query)
 
     query_embedding = None
@@ -127,28 +118,42 @@ def cmd_search(args):
 
 def cmd_status(args):
     cfg = load_config()
-    db_path = expand(cfg["dbPath"])
-    if not os.path.exists(db_path):
-        print("No index database found.")
-        return
+    try:
+        conn = init_db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM seek_chunks")
+        total = cur.fetchone()[0]
+        cur.execute("""
+            SELECT source_path, COUNT(*) as cnt, MAX(indexed_at) as last 
+            FROM seek_chunks GROUP BY source_path ORDER BY last DESC
+        """)
+        sources = cur.fetchall()
 
-    conn = init_db(cfg["dbPath"])
-    total = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-    sources = conn.execute("SELECT source_path, COUNT(*) as cnt, MAX(indexed_at) as last FROM chunks GROUP BY source_path ORDER BY last DESC").fetchall()
-    db_size = os.path.getsize(db_path)
+        print(f"Database: PostgreSQL (seek_chunks table)")
+        print(f"Total chunks: {total}")
+        print(f"Sources: {len(sources)}")
+        print()
+        for s in sources:
+            path = s[0]
+            home = os.path.expanduser("~")
+            if path.startswith(home):
+                path = "~" + path[len(home):]
+            ts = time.strftime("%Y-%m-%d %H:%M", time.localtime(s[2])) if s[2] else "unknown"
+            print(f"  {path}: {s[1]} chunks (indexed {ts})")
+        conn.close()
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+        print("Run 'seek index' to initialize the database.")
 
-    print(f"Database: {db_path} ({db_size / 1024 / 1024:.1f} MB)")
-    print(f"Total chunks: {total}")
-    print(f"Sources: {len(sources)}")
-    print()
-    for s in sources:
-        path = s["source_path"]
-        home = os.path.expanduser("~")
-        if path.startswith(home):
-            path = "~" + path[len(home):]
-        ts = time.strftime("%Y-%m-%d %H:%M", time.localtime(s["last"])) if s["last"] else "unknown"
-        print(f"  {path}: {s['cnt']} chunks (indexed {ts})")
-    conn.close()
+
+def cmd_init(args):
+    """Initialize the seek database tables."""
+    try:
+        conn = init_db()
+        print("Seek database tables initialized successfully.")
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing database: {e}")
 
 
 def cmd_reindex(args):
@@ -159,7 +164,7 @@ def cmd_reindex(args):
 
 def cmd_forget(args):
     cfg = load_config()
-    conn = init_db(cfg["dbPath"])
+    conn = init_db()
     path = expand(args.path)
     delete_source(conn, path)
     # Also try unexpanded
@@ -169,8 +174,10 @@ def cmd_forget(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="seek", description="Local semantic search engine")
+    parser = argparse.ArgumentParser(prog="seek", description="Local semantic search engine (PostgreSQL)")
     sub = parser.add_subparsers(dest="command")
+
+    sub.add_parser("init", help="Initialize database tables")
 
     p_index = sub.add_parser("index", help="Index configured paths")
     p_index.add_argument("path", nargs="?", help="Specific path to index")
@@ -190,7 +197,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "index":
+    if args.command == "init":
+        cmd_init(args)
+    elif args.command == "index":
         cmd_index(args)
     elif args.command == "search":
         cmd_search(args)
