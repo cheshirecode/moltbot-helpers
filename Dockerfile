@@ -30,7 +30,8 @@ RUN pip install --no-cache-dir --break-system-packages \
     flask \
     flask-cors \
     requests \
-    numpy
+    numpy \
+    sentence-transformers
 
 # Install the package (makes pt, fp, seek available as CLI commands)
 RUN pip install --no-cache-dir -e .
