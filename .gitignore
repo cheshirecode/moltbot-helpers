@@ -30,4 +30,10 @@ tokens/
 .shell_common
 .bashrc
 .zshrc
-.profile
+.profilevenv/
+.venv/
+__pycache__/
+*.pyc
+*.log
+.env
+flask_api_log.txt
